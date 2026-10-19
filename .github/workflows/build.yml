@@ -1,0 +1,47 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Test
+        run: cargo test --release
+
+      - name: Build
+        run: cargo build --release
+
+      - name: Size check
+        shell: pwsh
+        run: |
+          $f = Get-Item target/release/whatsinside.exe
+          "whatsinside.exe: {0:N0} KB" -f ($f.Length / 1KB) | Tee-Object -FilePath $env:GITHUB_STEP_SUMMARY -Append
+
+      # Every push: downloadable from the Actions run page.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: whatsinside-windows-x64
+          path: target/release/whatsinside.exe
+
+      # Tags like v0.1.0: a public GitHub Release with the exe attached.
+      - name: Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: target/release/whatsinside.exe
+          generate_release_notes: true

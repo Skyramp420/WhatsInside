@@ -438,15 +438,44 @@ function tmTip(n, parentSize) {
   return `<b>${esc(n.name)}</b><span class="num">${bytes(n.size)}${pct}${files}</span>${when}${tag}`;
 }
 
+/** Merges specks into one "menších" tile so the map shows what matters. */
+function foldSmall(items, total, minFrac) {
+  const keep = [], small = [];
+  items.forEach((c) => (c.size / total < minFrac || c.id == null ? small : keep).push(c));
+  if (small.length > 1 || (small.length === 1 && small[0].id == null)) {
+    keep.push({ id: null, kind: 'other', name: `${sk(small.length)} menších položiek`, size: small.reduce((a, c) => a + c.size, 0), files: 0, children: null });
+  } else keep.push(...small);
+  return keep;
+}
+
+/** Skips chains like Steam › steamapps › common that hold one big thing. */
+function subItems(n) {
+  let cur = n;
+  const path = [];
+  for (let d = 0; d < 3; d++) {
+    const ks = (cur.children || []).filter((c) => c.size > 0);
+    const top = ks[0];
+    if (!top || top.kind !== 'dir' || !top.children || top.size / cur.size < 0.8) break;
+    path.push(top.name);
+    cur = top;
+  }
+  return { items: (cur.children || []).filter((c) => c.size > 0), path };
+}
+
 const EASE = 'cubic-bezier(.2,.9,.25,1)';
 function drawTreemap(mode = null, fromRect = null, prev = null) {
   const card = $('#tmCard'), l = st.listing;
   if (!card || !l) return;
   const W = card.clientWidth - 16, H = card.clientHeight - 16;
-  const old = $('.tmlayer', card);
+  // Only the layer currently on screen may animate out. Anything older (left over
+  // from fast clicking) is dropped, otherwise a ghost folder stays behind.
+  const old = st.layer && st.layer.isConnected ? st.layer : null;
+  $$('.tmlayer', card).forEach((x) => { if (x !== old) x.remove(); });
+  if (old) old.getAnimations().forEach((an) => an.cancel());
   const layer = document.createElement('div');
+  st.layer = layer;
   layer.className = 'tmlayer';
-  const kids = (l.node.children || []).filter((c) => c.size > 0);
+  const kids = foldSmall((l.node.children || []).filter((c) => c.size > 0), l.node.size, 0.006);
   st.rects = new Map();
   if (!kids.length) {
     layer.innerHTML = `<div class="empty">${ICON.dir}Tento priečinok je prázdny.</div>`;
@@ -470,8 +499,10 @@ function drawTreemap(mode = null, fromRect = null, prev = null) {
       el.onmousemove = (e) => showTip(tmTip(n, l.node.size), e.clientX, e.clientY);
       el.onmouseleave = hideTip;
       if (n.kind === 'dir' && n.id != null) el.onclick = () => { hideTip(); openNode(n.id); };
-      const sub = (n.children || []).filter((c) => c.size > 0);
-      if (big && h > 90 && w > 120 && sub.length) {
+      const si = subItems(n);
+      const sub = foldSmall(si.items, n.size, 0.02);
+      if (si.path.length && w > 170 && h > 46) el.querySelector('.lbl')?.insertAdjacentHTML('beforeend', `<span class="via">› ${esc(si.path.join(' › '))}</span>`);
+      if (big && h > 90 && w > 120 && sub.length > 1) {
         const sr = squarify(sub.map((c) => c.size), 4, 38, w - 8, h - 42);
         sub.forEach((c, k) => {
           let [sx, sy, sw, sh] = sr[k];
@@ -521,6 +552,7 @@ function drawTreemap(mode = null, fromRect = null, prev = null) {
     b = old.animate([{ opacity: 1 }, { opacity: 0 }], { ...opts, duration: 200 });
   }
   b.onfinish = () => old.remove();
+  setTimeout(() => { if (old.isConnected && old !== st.layer) old.remove(); }, opts.duration + 150);
   a.onfinish = () => { a.cancel(); layer.classList.remove('morph'); };
 }
 
@@ -975,7 +1007,7 @@ const card = loadCard();
 function loadCard() {
   let c = null;
   try { c = JSON.parse(localStorage.getItem('pccard') || 'null'); } catch {}
-  return c || { title: 'Môj PC', subtitle: '', theme: 'dark', accent: '#ff9f0a', layout: 'list', footer: true, rows: [] };
+  return c || { title: 'Môj PC', subtitle: '', theme: 'dark', accent: '#ff9f0a', finish: 'rainbow', footer: true, rows: [] };
 }
 function saveCard() { try { localStorage.setItem('pccard', JSON.stringify(card)); } catch {} }
 
@@ -1027,7 +1059,7 @@ function renderEditor() {
       <label class="field"><span>Podnadpis</span><input id="cSub" value="${esc(card.subtitle)}" placeholder="napr. tvoj nick" maxlength="50"></label></div>
     <div class="erow">
       <div class="seg" id="cTheme"><div class="knob"></div><button data-k="dark" class="${card.theme === 'dark' ? 'on' : ''}">Tmavá</button><button data-k="light" class="${card.theme === 'light' ? 'on' : ''}">Svetlá</button></div>
-      <div class="seg" id="cLayout"><div class="knob"></div><button data-k="list" class="${card.layout === 'list' ? 'on' : ''}">Zoznam</button><button data-k="grid" class="${card.layout === 'grid' ? 'on' : ''}">Mriežka</button></div>
+      <div class="seg" id="cLayout"><div class="knob"></div><button data-k="rainbow" class="${card.finish !== 'gold' ? 'on' : ''}">Dúha</button><button data-k="gold" class="${card.finish === 'gold' ? 'on' : ''}">Zlato</button></div>
     </div>
     <div class="swatches" id="cAccent">${ACCENTS.map((a) => `<button style="--s:${a}" class="${a === card.accent ? 'on' : ''}" data-a="${a}" title="${a}"></button>`).join('')}</div>
     <div class="rows" id="cRows">${card.rows.map((r, i) => `
@@ -1046,7 +1078,7 @@ function renderEditor() {
   $('#cTitle').oninput = (e) => { card.title = e.target.value; redraw(); };
   $('#cSub').oninput = (e) => { card.subtitle = e.target.value; redraw(); };
   seg($('#cTheme'), (k) => { card.theme = k; redraw(); });
-  seg($('#cLayout'), (k) => { card.layout = k; redraw(); });
+  seg($('#cLayout'), (k) => { card.finish = k; $('#holo').classList.toggle('gold', k === 'gold'); redraw(); });
   $$('#cAccent button').forEach((b) => (b.onclick = () => { card.accent = b.dataset.a; $$('#cAccent button').forEach((x) => x.classList.toggle('on', x === b)); redraw(); }));
   $$('#cRows .crow').forEach((row) => {
     const r = card.rows[+row.dataset.i];
@@ -1087,115 +1119,213 @@ function hexA(hex, a) {
   return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a})`;
 }
 
-/** Draws the share card. Same function for the preview and the export (scale 2). */
+/* ---- Pokémon-style PC card: drawn on a canvas (preview, PNG export), shine is CSS on top ---- */
+function hashStr(s) { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
+function rng(seed) { let s = seed || 1; return () => ((s = Math.imul(s ^ (s >>> 15), 2246822507) ^ Math.imul(s ^ (s >>> 13), 3266489909)) >>> 0) / 4294967296; }
+function mixHex(hex, to, t) {
+  const a = parseInt(hex.slice(1), 16), b = parseInt(to.slice(1), 16);
+  const c = (s) => Math.round(((a >> s) & 255) * (1 - t) + ((b >> s) & 255) * t);
+  return `rgb(${c(16)},${c(8)},${c(0)})`;
+}
+function fitFont(ctx, text, maxW, size, min, weight) {
+  let s = size;
+  for (; s > min; s -= 1) { ctx.font = `${weight} ${s}px "Inter Variable", "Segoe UI", sans-serif`; if (ctx.measureText(text).width <= maxW) return text; }
+  ctx.font = `${weight} ${min}px "Inter Variable", "Segoe UI", sans-serif`;
+  return fitText(ctx, text, maxW);
+}
+function star4(ctx, x, y, r) {
+  ctx.beginPath();
+  ctx.moveTo(x, y - r); ctx.quadraticCurveTo(x, y, x + r, y); ctx.quadraticCurveTo(x, y, x, y + r);
+  ctx.quadraticCurveTo(x, y, x - r, y); ctx.quadraticCurveTo(x, y, x, y - r); ctx.fill();
+}
+function rarity() {
+  const ram = specs ? specs.ram_total / 2 ** 30 : 0;
+  const vram = specs?.gpus?.[0]?.vram ? specs.gpus[0].vram / 2 ** 30 : 0;
+  if (vram >= 16 && ram >= 30) return '★ ULTRA RARE';
+  if (vram >= 8 || ram >= 15) return '◆ RARE';
+  return '● COMMON';
+}
+
+/** Draws the card. Same function for the preview and the export (scale 2). */
 function drawCard(canvas = $('#pcCanvas'), scale = 2) {
   const rows = card.rows.filter((r) => r.on && r.value.trim());
-  const dark = card.theme === 'dark';
+  const dark = card.theme === 'dark', A = card.accent, gold = card.finish === 'gold';
+  const F = (w, s) => `${w} ${s}px "Inter Variable", "Segoe UI", sans-serif`;
   const C = dark
-    ? { bg: '#1c1c1e', panel: '#2c2c2e', text: '#f5f5f7', muted: '#a1a1a6', faint: '#6e6e73', line: 'rgba(255,255,255,.08)' }
-    : { bg: '#f5f5f7', panel: '#ffffff', text: '#1d1d1f', muted: '#6e6e73', faint: '#a1a1a6', line: 'rgba(0,0,0,.07)' };
-  const W = 960, P = 48, grid = card.layout === 'grid';
-  const rowH = grid ? 112 : 92, gap = 14, cols = grid ? 2 : 1;
-  const headH = card.subtitle ? 150 : 124;
-  const nRows = Math.ceil(rows.length / cols);
-  const H = P + headH + Math.max(1, nRows) * (rowH + gap) - gap + (card.footer ? 72 : P);
+    ? { inner: '#18181b', text: '#f5f5f7', muted: '#a1a1a6', line: 'rgba(255,255,255,.1)' }
+    : { inner: '#fbf7ec', text: '#1d1d1f', muted: '#6e6e73', line: 'rgba(0,0,0,.1)' };
+  const W = 750, H = 1050;
   canvas.width = W * scale;
   canvas.height = H * scale;
   const ctx = canvas.getContext('2d');
-  ctx.scale(scale, scale);
-  // background
-  roundRect(ctx, 0, 0, W, H, 40);
-  ctx.save();
-  ctx.clip();
-  ctx.fillStyle = C.bg;
-  ctx.fillRect(0, 0, W, H);
-  const glow = ctx.createRadialGradient(W - 110, 30, 0, W - 110, 30, 640);
-  const ga = dark ? 0.34 : 0.22;
-  [[0, 1], [0.25, 0.62], [0.5, 0.3], [0.75, 0.09], [1, 0]].forEach(([o, k]) => glow.addColorStop(o, hexA(card.accent, ga * k)));
-  ctx.fillStyle = glow;
-  ctx.fillRect(0, 0, W, H);
-  // header
-  ctx.fillStyle = C.text;
-  ctx.font = '700 46px "Inter Variable", "Segoe UI", sans-serif';
+  ctx.setTransform(scale, 0, 0, scale, 0, 0);
+  ctx.clearRect(0, 0, W, H);
   ctx.textBaseline = 'alphabetic';
-  ctx.fillText(fitText(ctx, card.title || 'Môj PC', W - P * 2), P, P + 52);
-  if (card.subtitle) {
-    ctx.fillStyle = C.muted;
-    ctx.font = '500 24px "Inter Variable", "Segoe UI", sans-serif';
-    ctx.fillText(fitText(ctx, card.subtitle, W - P * 2), P, P + 92);
+  const seed = hashStr(`${card.title}|${A}`);
+
+  // frame
+  roundRect(ctx, 0, 0, W, H, 40);
+  ctx.save(); ctx.clip();
+  const fg = ctx.createLinearGradient(0, 0, W, H);
+  const base = gold ? '#e9b949' : A;
+  [[0, mixHex(base, '#000000', 0.15)], [0.22, mixHex(base, '#ffffff', 0.55)], [0.5, base], [0.74, mixHex(base, '#ffffff', 0.4)], [1, mixHex(base, '#000000', 0.45)]].forEach(([o, c]) => fg.addColorStop(o, c));
+  ctx.fillStyle = fg; ctx.fillRect(0, 0, W, H);
+  // inner
+  roundRect(ctx, 24, 24, W - 48, H - 48, 22);
+  ctx.fillStyle = C.inner; ctx.fill();
+  ctx.save(); ctx.clip();
+  const glow = ctx.createRadialGradient(W - 80, 60, 0, W - 80, 60, 600);
+  [[0, 0.30], [0.3, 0.14], [0.6, 0.05], [1, 0]].forEach(([o, k]) => glow.addColorStop(o, hexA(A, k * (dark ? 1 : 0.7))));
+  ctx.fillStyle = glow; ctx.fillRect(0, 0, W, H);
+  ctx.restore();
+
+  // header: tag, name, HP
+  const ram = specs ? Math.round(specs.ram_total / 2 ** 30) : 0;
+  ctx.font = F(700, 15);
+  const tag = 'ZÁKLADNÝ PC';
+  const tw = ctx.measureText(tag).width + 22;
+  roundRect(ctx, 52, 44, tw, 26, 13);
+  ctx.fillStyle = hexA(A, 0.18); ctx.fill();
+  ctx.fillStyle = A; ctx.fillText(tag, 63, 62);
+  let rightX = W - 52;
+  if (ram) {
+    ctx.textAlign = 'right';
+    ctx.font = F(800, 52); ctx.fillStyle = C.text;
+    ctx.fillText(String(ram), rightX, 104);
+    const nw = ctx.measureText(String(ram)).width;
+    ctx.font = F(800, 20); ctx.fillStyle = A;
+    ctx.fillText('HP', rightX - nw - 8, 104);
+    ctx.textAlign = 'left';
+    rightX -= nw + 60;
   }
-  // rows
-  const colW = (W - P * 2 - gap * (cols - 1)) / cols;
-  rows.forEach((r, i) => {
-    const cx = P + (i % cols) * (colW + gap), cy = P + headH + Math.floor(i / cols) * (rowH + gap);
-    roundRect(ctx, cx, cy, colW, rowH, 22);
-    ctx.fillStyle = C.panel;
-    ctx.fill();
-    ctx.strokeStyle = C.line;
-    ctx.lineWidth = 1;
+  ctx.fillStyle = C.text;
+  const name = fitFont(ctx, card.title || 'Môj PC', rightX - 52 - 14, 50, 26, 800);
+  ctx.fillText(name, 52, 108);
+
+  // art window
+  const ax = 52, ay = 128, aw = W - 104, ah = 350;
+  roundRect(ctx, ax - 5, ay - 5, aw + 10, ah + 10, 18);
+  const wf = ctx.createLinearGradient(ax, ay, ax + aw, ay + ah);
+  wf.addColorStop(0, mixHex(base, '#ffffff', 0.6)); wf.addColorStop(0.5, mixHex(base, '#000000', 0.2)); wf.addColorStop(1, mixHex(base, '#ffffff', 0.45));
+  ctx.fillStyle = wf; ctx.fill();
+  roundRect(ctx, ax, ay, aw, ah, 14);
+  ctx.save(); ctx.clip();
+  const ag = ctx.createLinearGradient(ax, ay, ax + aw * 0.6, ay + ah);
+  ag.addColorStop(0, mixHex(A, '#000000', 0.55)); ag.addColorStop(0.55, mixHex(A, '#000000', 0.15)); ag.addColorStop(1, mixHex(A, '#ffffff', 0.18));
+  ctx.fillStyle = ag; ctx.fillRect(ax, ay, aw, ah);
+  const cx = ax + aw / 2, cy = ay + ah * 0.46;
+  // rays
+  for (let i = 0; i < 28; i++) {
+    const a0 = (i / 28) * Math.PI * 2, a1 = a0 + Math.PI / 28;
+    ctx.beginPath(); ctx.moveTo(cx, cy);
+    ctx.lineTo(cx + Math.cos(a0) * 600, cy + Math.sin(a0) * 600); ctx.lineTo(cx + Math.cos(a1) * 600, cy + Math.sin(a1) * 600);
+    ctx.fillStyle = 'rgba(255,255,255,.055)'; ctx.fill();
+  }
+  // circuit traces
+  const R = rng(seed);
+  ctx.strokeStyle = 'rgba(255,255,255,.16)'; ctx.lineWidth = 2; ctx.lineJoin = 'round';
+  for (let i = 0; i < 9; i++) {
+    let x = ax + 20 + R() * (aw - 40), y = ay + 14 + R() * 60;
+    ctx.beginPath(); ctx.moveTo(x, y);
+    for (let k = 0; k < 4; k++) { y += 30 + R() * 50; ctx.lineTo(x, y); x += (R() - 0.5) * 120; ctx.lineTo(x, y); }
     ctx.stroke();
-    // icon tile
-    const it = 52, ix = cx + 20, iy = cy + (rowH - it) / 2;
-    roundRect(ctx, ix, iy, it, it, 15);
-    ctx.fillStyle = hexA(card.accent, dark ? 0.16 : 0.13);
-    ctx.fill();
-    ctx.save();
-    ctx.translate(ix + 10, iy + 10);
-    ctx.scale(2, 2);
-    ctx.strokeStyle = card.accent;
-    ctx.lineWidth = 1.5;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    ctx.stroke(new Path2D(CARD_ICONS[r.icon] || CARD_ICONS.star));
-    ctx.restore();
-    // text
-    const tx = ix + it + 18, tw = colW - (tx - cx) - 20;
-    ctx.fillStyle = C.muted;
-    ctx.font = '600 17px "Inter Variable", "Segoe UI", sans-serif';
-    ctx.fillText(fitText(ctx, r.label.toUpperCase(), tw), tx, cy + (grid ? 42 : 38));
-    ctx.fillStyle = C.text;
-    ctx.font = `600 ${grid ? 23 : 25}px "Inter Variable", "Segoe UI", sans-serif`;
-    if (grid) {
-      // two lines in grid mode
-      const words = r.value.split(' ');
-      let l1 = '', k = 0;
-      while (k < words.length && ctx.measureText((l1 + ' ' + words[k]).trim()).width <= tw) l1 = (l1 + ' ' + words[k++]).trim();
-      ctx.fillText(l1 || fitText(ctx, r.value, tw), tx, cy + 72);
-      if (k < words.length && l1) ctx.fillText(fitText(ctx, words.slice(k).join(' '), tw), tx, cy + 100);
+    ctx.fillStyle = 'rgba(255,255,255,.3)'; ctx.beginPath(); ctx.arc(x, y, 4, 0, 7); ctx.fill();
+  }
+  // halo + logo
+  const halo = ctx.createRadialGradient(cx, cy, 10, cx, cy, 190);
+  [[0, 0.55], [0.4, 0.22], [1, 0]].forEach(([o, k]) => halo.addColorStop(o, `rgba(255,255,255,${k})`));
+  ctx.fillStyle = halo; ctx.fillRect(ax, ay, aw, ah);
+  ctx.save(); ctx.translate(cx - 70, cy - 70); ctx.lineWidth = 9; ctx.strokeStyle = '#fff'; ctx.shadowColor = 'rgba(0,0,0,.35)'; ctx.shadowBlur = 24; ctx.shadowOffsetY = 8;
+  roundRect(ctx, 0, 0, 140, 140, 40); ctx.stroke();
+  ctx.beginPath(); ctx.ellipse(70, 70, 46, 29, 0, 0, Math.PI * 2); ctx.stroke();
+  ctx.shadowColor = 'transparent'; ctx.fillStyle = gold ? '#e9b949' : '#ff9f0a'; ctx.beginPath(); ctx.arc(70, 70, 15, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+  // sparkles
+  ctx.fillStyle = 'rgba(255,255,255,.85)';
+  for (let i = 0; i < 14; i++) star4(ctx, ax + 16 + R() * (aw - 32), ay + 16 + R() * (ah - 32), 4 + R() * 9);
+  // GPU ribbon
+  const gpu = rows.find((r) => r.key === 'gpu')?.value || rows.find((r) => r.key === 'cpu')?.value || '';
+  if (gpu) {
+    const t = fitFont(ctx, gpu, aw - 90, 30, 18, 800);
+    const gw = ctx.measureText(t).width + 44;
+    roundRect(ctx, cx - gw / 2, ay + ah - 62, gw, 42, 21);
+    ctx.fillStyle = 'rgba(0,0,0,.42)'; ctx.fill();
+    ctx.textAlign = 'center'; ctx.fillStyle = '#fff'; ctx.fillText(t, cx, ay + ah - 32); ctx.textAlign = 'left';
+  }
+  // baked-in sheen so the PNG still looks foil
+  ctx.globalCompositeOperation = 'overlay';
+  const sh = ctx.createLinearGradient(ax, ay + ah, ax + aw, ay);
+  (gold ? ['#fff3b0', '#e9b949', '#fff3b0', '#c98a1a'] : ['#ff5e5e', '#ffd25e', '#5eff9a', '#5ecbff', '#b45eff']).forEach((c, i, arr) => sh.addColorStop(i / (arr.length - 1), c));
+  ctx.globalAlpha = 0.38; ctx.fillStyle = sh; ctx.fillRect(ax, ay, aw, ah);
+  ctx.restore();
+
+  // info strip
+  const os = rows.find((r) => r.key === 'os')?.value;
+  const info = card.subtitle || os || 'Počítač';
+  ctx.textAlign = 'center'; ctx.fillStyle = C.muted; ctx.font = 'italic 500 17px "Inter Variable", "Segoe UI", sans-serif';
+  ctx.fillText(fitText(ctx, info, aw - 40), W / 2, ay + ah + 38);
+  ctx.textAlign = 'left';
+
+  // attacks
+  const spec = rows.filter((r) => r.key !== 'os' || card.subtitle);
+  const top = ay + ah + 56, bottom = H - 106, avail = bottom - top;
+  const n = spec.length;
+  const rh = Math.min(88, avail / Math.max(n, 1));
+  spec.forEach((r, i) => {
+    const y = top + i * rh, mid = y + rh / 2;
+    if (i) { ctx.fillStyle = C.line; ctx.fillRect(52, y, W - 104, 1.2); }
+    const rad = Math.min(24, rh * 0.34), ix = 52 + rad + 4;
+    const ig = ctx.createRadialGradient(ix - rad * 0.3, mid - rad * 0.4, 1, ix, mid, rad);
+    ig.addColorStop(0, mixHex(A, '#ffffff', 0.4)); ig.addColorStop(1, A);
+    ctx.beginPath(); ctx.arc(ix, mid, rad, 0, Math.PI * 2); ctx.fillStyle = ig; ctx.fill();
+    ctx.save(); const s = (rad * 1.15) / 16; ctx.translate(ix - 8 * s, mid - 8 * s); ctx.scale(s, s);
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.6; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.stroke(new Path2D(CARD_ICONS[r.icon] || CARD_ICONS.star)); ctx.restore();
+    const tx = ix + rad + 18, maxW = W - 52 - tx;
+    if (rh >= 58) {
+      ctx.fillStyle = C.muted; ctx.font = F(700, 14); ctx.fillText(fitText(ctx, r.label.toUpperCase(), maxW), tx, mid - 8);
+      ctx.fillStyle = C.text; ctx.fillText(fitFont(ctx, r.value, maxW, 27, 15, 700), tx, mid + 21);
     } else {
-      ctx.fillText(fitText(ctx, r.value, tw), tx, cy + 70);
+      const lw = 110;
+      ctx.fillStyle = C.text; ctx.fillText(fitFont(ctx, r.value, maxW - lw - 12, Math.min(22, rh * 0.52), 13, 700), tx, mid + 6);
+      ctx.textAlign = 'right'; ctx.fillStyle = C.muted; ctx.font = F(700, 12); ctx.fillText(fitText(ctx, r.label.toUpperCase(), lw), W - 52, mid + 4); ctx.textAlign = 'left';
     }
   });
-  if (!rows.length) {
-    ctx.fillStyle = C.faint;
-    ctx.font = '500 22px "Inter Variable", "Segoe UI", sans-serif';
-    ctx.fillText('Zapni aspoň jeden riadok', P, P + headH + 50);
-  }
+  if (!n) { ctx.fillStyle = C.muted; ctx.font = F(500, 22); ctx.fillText('Zapni aspoň jeden riadok', 52, top + 50); }
+
   // footer
+  const fy = H - 52;
+  ctx.fillStyle = C.line; ctx.fillRect(52, fy - 36, W - 104, 1.2);
   if (card.footer) {
-    const fy = H - 34;
-    ctx.save();
-    ctx.translate(P, fy - 19);
-    ctx.strokeStyle = C.faint;
-    ctx.lineWidth = 1.6;
-    roundRect(ctx, 0, 0, 24, 24, 7);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.ellipse(12, 12, 8, 5, 0, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.arc(12, 12, 2.6, 0, Math.PI * 2);
-    ctx.fillStyle = card.accent;
-    ctx.fill();
-    ctx.restore();
-    ctx.fillStyle = C.faint;
-    ctx.font = '600 17px "Inter Variable", "Segoe UI", sans-serif';
-    ctx.fillText('WhatsInside', P + 36, fy);
-    const w1 = ctx.measureText('WhatsInside').width;
-    ctx.font = '500 17px "Inter Variable", "Segoe UI", sans-serif';
-    ctx.fillText('  od WheresTheApp', P + 36 + w1, fy);
+    ctx.save(); ctx.translate(52, fy - 18); ctx.strokeStyle = C.muted; ctx.lineWidth = 1.6;
+    roundRect(ctx, 0, 0, 24, 24, 7); ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(12, 12, 8, 5, 0, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(12, 12, 2.6, 0, Math.PI * 2); ctx.fillStyle = A; ctx.fill(); ctx.restore();
+    ctx.fillStyle = C.muted; ctx.font = F(600, 16); ctx.fillText('WhatsInside', 88, fy);
   }
+  ctx.textAlign = 'right'; ctx.fillStyle = A; ctx.font = F(800, 16);
+  ctx.fillText(`${rarity()}  ·  №${String(seed % 900 + 100)}`, W - 52, fy); ctx.textAlign = 'left';
   ctx.restore();
+}
+
+/** Tilt + foil shine that follow the pointer (CSS does the painting). */
+function initHolo() {
+  const h = $('#holo');
+  if (!h || h.dataset.on) return;
+  h.dataset.on = '1';
+  let raf = 0;
+  const set = (px, py, on) => {
+    cancelAnimationFrame(raf);
+    raf = requestAnimationFrame(() => {
+      h.style.setProperty('--mx', `${px * 100}%`);
+      h.style.setProperty('--my', `${py * 100}%`);
+      h.style.setProperty('--rx', `${on ? (0.5 - py) * 16 : 0}deg`);
+      h.style.setProperty('--ry', `${on ? (px - 0.5) * 20 : 0}deg`);
+      h.classList.toggle('hot', on);
+    });
+  };
+  h.addEventListener('pointermove', (e) => { const r = h.getBoundingClientRect(); set((e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height, !REDUCED); });
+  h.addEventListener('pointerleave', () => set(0.5, 0.5, false));
 }
 
 function cardText() {
@@ -1238,6 +1368,8 @@ views.hw = {
       renderEditor();
       await document.fonts.load('700 46px "Inter Variable"').catch(() => {});
       drawCard();
+      initHolo();
+      $('#holo').classList.toggle('gold', card.finish === 'gold');
       $('#hwList').innerHTML = hwReport.devices.map((d, i) => `<div class="card dev land" style="--i:${i}">
         <div class="k"><span class="dot ${d.supported ? 'mint' : ''}"></span>${esc(d.kind)}${d.supported ? ' · podporované' : ''}</div>
         <div class="n">${esc(d.name)}</div><div class="i">${esc(d.id)}</div><div class="d">${esc(d.note)}</div></div>`).join('') +

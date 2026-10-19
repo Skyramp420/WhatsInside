@@ -201,6 +201,7 @@ body.idle .scanning .bar.indet i{animation-play-state:paused}
 .tm.sub{border-radius:4px;background:color-mix(in srgb,var(--c) calc(var(--tm-mix) + 14%),var(--panel));box-shadow:none}
 .tm.sub:hover{box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--c) 80%,transparent)}
 .tm.sub .lbl{font-size:11px;left:5px;top:3px}
+.tm .lbl .via{display:block;font:500 10.5px var(--body);color:var(--muted);opacity:.8;margin-top:1px;overflow:hidden;text-overflow:ellipsis}
 .tm.small,.tm.other{--c:var(--faint)!important}
 .tm.file{--c:var(--blue)}
 .tm.land{animation-duration:.45s}
@@ -367,7 +368,26 @@ body.idle .scanning .bar.indet i{animation-play-state:paused}
 /* PC card lab */
 .cardlab{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(330px,.95fr);gap:14px;align-items:start}
 .preview{padding:16px;display:grid;place-items:center;background:var(--well);box-shadow:none}
-.preview canvas{width:100%;height:auto;display:block;border-radius:14px;box-shadow:0 10px 30px var(--shadow)}
+.preview{padding:28px 16px}
+.holo{--mx:50%;--my:50%;--rx:0deg;--ry:0deg;position:relative;width:min(100%,380px);aspect-ratio:750/1050;border-radius:5.3% / 3.8%;
+  transform:perspective(900px) rotateX(var(--rx)) rotateY(var(--ry));transition:transform .7s var(--spring),box-shadow .4s;
+  box-shadow:0 14px 40px var(--shadow);isolation:isolate;touch-action:none}
+.holo.hot{transition:transform .08s linear,box-shadow .3s;box-shadow:0 26px 60px var(--shadow)}
+.holo canvas{width:100%;height:100%;display:block;border-radius:inherit}
+.holo i{position:absolute;inset:0;border-radius:inherit;pointer-events:none;opacity:0;transition:opacity .35s var(--ease)}
+.holo.hot i{opacity:1}
+.holo .shine{background:repeating-linear-gradient(115deg,#ff5e5e 0%,#ffd25e 8%,#5eff9a 16%,#5ecbff 24%,#b45eff 32%,#ff5e9a 40%,#ff5e5e 48%);
+  background-size:260% 260%;background-position:var(--mx) var(--my);mix-blend-mode:color-dodge;filter:saturate(1.2);
+  -webkit-mask-image:radial-gradient(circle at var(--mx) var(--my),#000 0,rgba(0,0,0,.55) 42%,rgba(0,0,0,.18) 80%);mask-image:radial-gradient(circle at var(--mx) var(--my),#000 0,rgba(0,0,0,.55) 42%,rgba(0,0,0,.18) 80%)}
+.holo.hot .shine{opacity:.3}
+.holo.gold .shine{filter:sepia(1) saturate(2.6) hue-rotate(-12deg)}
+.holo .sparkle{background:radial-gradient(circle at 20% 30%,#fff 0 1.2px,transparent 2px),radial-gradient(circle at 70% 55%,#fff 0 1.2px,transparent 2px),radial-gradient(circle at 45% 80%,#fff 0 1.2px,transparent 2px),radial-gradient(circle at 85% 15%,#fff 0 1.2px,transparent 2px);
+  background-size:90px 90px,120px 120px,70px 70px,150px 150px;background-position:calc(var(--mx)*.6) calc(var(--my)*.6),calc(var(--mx)*-.4) var(--my),var(--mx) calc(var(--my)*-.5),var(--my) var(--mx);
+  mix-blend-mode:color-dodge;-webkit-mask-image:radial-gradient(circle at var(--mx) var(--my),#000,transparent 60%);mask-image:radial-gradient(circle at var(--mx) var(--my),#000,transparent 60%)}
+.holo.hot .sparkle{opacity:.9}
+.holo .glare{background:radial-gradient(farthest-corner circle at var(--mx) var(--my),rgba(255,255,255,.55) 0,rgba(255,255,255,.12) 28%,transparent 60%);mix-blend-mode:soft-light}
+.holo.hot .glare{opacity:1}
+@media (prefers-reduced-motion:reduce){.holo{transition:none}}
 .editor{padding:16px;display:flex;flex-direction:column;gap:12px}
 .erow,.erow2{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 .erow2 .field{flex:1;min-width:0}

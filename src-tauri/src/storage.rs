@@ -599,7 +599,7 @@ impl Tree {
                 .children
                 .iter()
                 .take(limit)
-                .map(|&c| self.view(c, depth - 1, if depth > 1 { 24 } else { limit }))
+                .map(|&c| self.view(c, depth - 1, if depth > 1 { 16 } else { limit }))
                 .collect();
             if n.children.len() > limit {
                 let rest = &n.children[limit..];
@@ -646,7 +646,7 @@ impl Tree {
         }
         crumbs.reverse();
         Some(Listing {
-            node: self.view(id, 2, 150),
+            node: self.view(id, 3, 150),
             path: self.path_of(id),
             crumbs,
             owner: self.owner(id).cloned(),

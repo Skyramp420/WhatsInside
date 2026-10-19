@@ -10,7 +10,7 @@ Nič nemení ani nemaže. Keď ju zavrieš, nebeží nič: žiadna služba, žia
 - **Úložisko**: paralelný scan, treemap s plynulým priblížením pri vstupe do priečinka, vyhľadávanie, označenie hier (Steam, Epic, Xbox, GOG, Riot, Ubisoft, EA) a programov, najväčšie súbory, staré a zabudnuté súbory, cache na uvoľnenie.
 - **Procesy**: živý prehľad zoskupený podľa appky s vysvetlením.
 - **Po spustení**: Run kľúče, priečinok Po spustení a služby tretích strán.
-- **Hardvér**: karta PC na zdieľanie (Discord): zistí procesor, grafiku aj s VRAM, dosku, RAM (typ, rýchlosť, výrobca zo SMBIOS), disky a systém; ostatné doplníš sám. Kopírovanie obrázka do schránky, uloženie PNG alebo text.
+- **Hardvér**: zberateľská karta PC (náklon a lesklá fólia pri myši, tmavá/svetlá, dúhová/zlatá) na zdieľanie (Discord): zistí procesor, grafiku aj s VRAM, dosku, RAM (typ, rýchlosť, výrobca zo SMBIOS), disky a systém; ostatné doplníš sám. Kopírovanie obrázka do schránky, uloženie PNG alebo text.
 
 ## Plán
 

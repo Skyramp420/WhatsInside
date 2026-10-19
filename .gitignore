@@ -1,3 +1,5 @@
 target/
-*.json.bak
+src-tauri/target/
+src-tauri/gen/
+node_modules/
 whatsinside-report.json

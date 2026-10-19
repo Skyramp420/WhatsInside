@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="sk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>WhatsInside</title>
+<link rel="stylesheet" href="styles.css">
+<script src="theme.js"></script>
+</head>
+<body>
+<header class="titlebar" data-tauri-drag-region>
+  <div class="brand">
+    <svg class="logo" viewBox="0 0 24 24" aria-hidden="true">
+      <rect x="2.5" y="2.5" width="19" height="19" rx="5.5" fill="none" stroke="currentColor" stroke-width="1.7"/>
+      <g class="lid"><path d="M5 12c2-3.2 4.4-4.8 7-4.8s5 1.6 7 4.8c-2 3.2-4.4 4.8-7 4.8S7 15.2 5 12z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+      <circle class="pupil" cx="12" cy="12" r="2.4" fill="var(--accent)"/></g>
+    </svg>
+    <b>WhatsInside</b><small>od WheresTheApp</small>
+  </div>
+  <div class="drag" data-tauri-drag-region></div>
+  <div class="winbtns">
+    <button id="wmin" title="Minimalizovať"><svg viewBox="0 0 10 10"><path d="M0 5h10"/></svg></button>
+    <button id="wmax" title="Maximalizovať"><svg viewBox="0 0 10 10"><rect x=".5" y=".5" width="9" height="9"/></svg></button>
+    <button id="wclose" class="close" title="Zavrieť"><svg viewBox="0 0 10 10"><path d="M0 0l10 10M10 0L0 10"/></svg></button>
+  </div>
+</header>
+
+<aside class="side">
+  <nav class="nav" id="nav">
+    <div class="ind"></div>
+    <button data-view="storage" class="on"><svg viewBox="0 0 16 16"><rect x="1.8" y="3" width="12.4" height="10" rx="2"/><path d="M1.8 9.5h12.4M11.2 11.3h.01"/></svg>Úložisko</button>
+    <button data-view="procs"><svg viewBox="0 0 16 16"><path d="M1.5 8.5h3l2-5 3 9 2-4h3"/></svg>Procesy</button>
+    <button data-view="startup"><svg viewBox="0 0 16 16"><path d="M8 1.8v5.4"/><path d="M4.4 4.1a5.3 5.3 0 1 0 7.2 0"/></svg>Po spustení<span class="count" id="startupCount"></span></button>
+    <button data-view="hw"><svg viewBox="0 0 16 16"><rect x="4" y="4" width="8" height="8" rx="1.6"/><path d="M6.5 1.5V4M9.5 1.5V4M6.5 12v2.5M9.5 12v2.5M1.5 6.5H4M1.5 9.5H4M12 6.5h2.5M12 9.5h2.5"/></svg>Hardvér</button>
+  </nav>
+  <div class="spacer"></div>
+  <div class="status" id="status">
+    <div class="row"><span class="dot mint"></span><span id="statusTitle">Len sa pozerám</span></div>
+    <p id="statusText">Nič nemením ani nemažem. Keď ma zavrieš, nebeží nič.</p>
+    <div class="bar" id="statusBar" hidden><i></i></div>
+  </div>
+  <button class="themebtn" id="theme"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="3"/><path d="M8 1.5v1.3M8 13.2v1.3M1.5 8h1.3M13.2 8h1.3M3.4 3.4l.9.9M11.7 11.7l.9.9M3.4 12.6l.9-.9M11.7 4.3l.9-.9"/></svg><span id="themeLabel">Téma</span></button>
+</aside>
+
+<main id="main">
+  <!-- Storage -->
+  <section class="view on" id="v-storage">
+    <div class="head">
+      <div><h1>Úložisko</h1><div class="sub">Čo ti zaberá miesto na disku</div></div>
+      <div class="actions" id="storageActions"></div>
+    </div>
+    <div id="storageBody"></div>
+  </section>
+
+  <!-- Processes -->
+  <section class="view" id="v-procs">
+    <div class="head">
+      <div><h1>Procesy</h1><div class="sub">Čo práve beží, zoskupené podľa appky</div></div>
+      <div class="actions">
+        <label class="search"><svg viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.6"/><path d="M10.5 10.5l3.5 3.5"/></svg><input id="psearch" placeholder="Hľadať" spellcheck="false"></label>
+        <div class="seg" id="psort"><div class="knob"></div><button data-k="ram" class="on">RAM</button><button data-k="cpu">CPU</button><button data-k="io">Disk</button></div>
+      </div>
+    </div>
+    <div class="stats">
+      <div class="card stat"><div class="k">Procesor</div><div class="v num" id="sCpu">–</div><div class="bar" id="sCpuBar"><i></i></div></div>
+      <div class="card stat"><div class="k">Pamäť</div><div class="v num" id="sRam">–</div><div class="bar" id="sRamBar"><i></i></div></div>
+      <div class="card stat"><div class="k">Procesy</div><div class="v num" id="sCount">–</div></div>
+      <div class="card stat"><div class="k">Výrobcovské RGB appky</div><div class="v num" id="sRgb">–</div></div>
+    </div>
+    <div class="chips" id="pchips"></div>
+    <div class="card ptable">
+      <div class="phead"><span>Appka</span><span></span><span>CPU</span><span>RAM</span><span>Disk</span></div>
+      <div id="plist"></div>
+    </div>
+    <div class="note">Nič tu nevypínam. Pri známych appkách vysvetlím, čo robia a či ich potrebuješ.</div>
+  </section>
+
+  <!-- Startup -->
+  <section class="view" id="v-startup">
+    <div class="head">
+      <div><h1>Po spustení</h1><div class="sub">Čo sa spúšťa spolu s Windowsom</div></div>
+      <div class="actions"><button class="btn" id="startupRefresh"><svg viewBox="0 0 16 16"><path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9M13.5 2.5v3h-3"/></svg>Obnoviť</button></div>
+    </div>
+    <div class="card info"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.2"/><path d="M8 7.3v3.6M8 5h.01"/></svg>
+      <p><b>Zatiaľ len ukazujem.</b> Vypínanie z automatického spúšťania pridám v ďalšej verzii. Výrobcovské appky ako MSI Center sa často spúšťajú ako služby, preto ich vidíš aj tu.</p></div>
+    <div id="startupBody"></div>
+  </section>
+
+  <!-- Hardware -->
+  <section class="view" id="v-hw">
+    <div class="head">
+      <div><h1>Hardvér</h1><div class="sub">Čo som v tvojom PC našiel</div></div>
+    </div>
+    <div class="hw" id="hwList"></div>
+    <h2>Ovládanie RGB</h2>
+    <div class="card info"><svg viewBox="0 0 16 16"><path d="M8 1.8l1.8 3.9 4.2.5-3.1 2.9.8 4.2L8 11.2l-3.7 2.1.8-4.2L2 6.2l4.2-.5z"/></svg>
+      <p><b>Príde neskôr, poriadne.</b> Doska aj grafika sú podporované, ale GIF na displeji grafiky potrebuje program, ktorý beží stále. Chcem, aby to bolo pár MB, nie stovky. Zatiaľ ti aspoň ukážem, koľko ťa stoja tie súčasné.</p></div>
+    <div class="card list" id="hwRgbApps" style="margin-top:12px"></div>
+  </section>
+</main>
+
+<div class="tip" id="tip"></div>
+<script src="mock.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

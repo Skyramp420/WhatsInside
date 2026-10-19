@@ -1,51 +1,39 @@
 # WhatsInside
 
-Lightweight náhrada výrobcovských appiek (MSI Center, GIGABYTE Control Center…) pre RGB a hardvér. Časť rodiny appiek **WheresTheApp**: nesmie zaťažovať systém.
+Ľahký prehľad o tom, čo je v tvojom PC. Časť rodiny appiek **WheresTheApp** (téma Čistá).
 
-> Pracovný názov. Dá sa kedykoľvek premenovať.
+Nič nemení ani nemaže. Keď ju zavrieš, nebeží nič: žiadna služba, žiadny tray.
 
-## Princíp: apply & exit
-Appka nastaví farby, zapíše ich do hardvéru a **skončí**. Nebeží žiadna služba ani tray. Na pozadí beží len ak si zapneš živé efekty.
+## Čo vie (v0.2)
 
-## Stav
+- **Úložisko**: paralelný scan disku, treemap s preklikom do priečinkov, najväčšie súbory, cache, ktorú sa dá bezpečne uvoľniť (DaVinci Resolve, Adobe, shader cache, Temp, aktualizácie Windowsu…). Súbory z OneDrive, ktoré sú len online, nerátam.
+- **Procesy**: živý prehľad zoskupený podľa appky (napr. 4 procesy GIGABYTE Control Center ako jedna položka), CPU / RAM / disk a vysvetlenie pri známych appkách.
+- **Po spustení**: čo sa spúšťa s Windowsom, vrátane služieb tretích strán (tak sa spúšťajú MSI Center aj GCC).
+- **Hardvér**: podporované RGB radiče a grafika, plus koľko RAM ťa stoja výrobcovské RGB appky.
 
-| Verzia | Čo robí | Zapisuje do HW? |
-|---|---|---|
-| **v0.1** (teraz) | nájde podporované RGB radiče, grafiku a appky, ktoré by sa o RGB bili | **nie** |
-| v0.2 | jedna statická farba na doske a grafike, apply & exit | áno |
-| v0.3 | profily, per-LED, UI v štýle Čistá | áno |
+## Plán
 
-## Podporovaný hardvér (zatiaľ)
+| Verzia | Čo |
+|---|---|
+| v0.3 | vypínanie z autostartu (cez rovnaký prepínač ako Správca úloh), mazanie cache do Koša |
+| ďalej | scan cez MFT (rýchlosť ako WizTree), diagnostika (teploty, throttling), ovládanie RGB |
 
-| Zariadenie | Ako | Pozn. |
-|---|---|---|
-| MSI MAG Z790 TOMAHAWK WIFI (`1462:7D91`) | USB HID, Mystic Light 185 B | ovláda aj ARGB headery (AIO, vetráky cez hub) |
-| GIGABYTE AORUS RTX 5080 MASTER / ICE | I2C cez NVAPI, adresa `0x71` | svetlá áno, LCD displej zatiaľ nie |
+## Podporovaný hardvér (RGB, zatiaľ len detekcia)
 
-Bez kernel drivera. SMBus/RAM zámerne nepodporujeme (riziko poškodenia SPD).
+| Zariadenie | Ako |
+|---|---|
+| MSI MAG Z790 TOMAHAWK WIFI (`1462:7D91`) | USB HID, Mystic Light 185 B |
+| GIGABYTE AORUS RTX 5080 MASTER / ICE | I2C cez NVAPI, `0x71` (LCD displej zatiaľ nie) |
 
-## Bezpečnostné pravidlá
-- iba známe ID zariadení a zdokumentované príkazy
-- nikdy žiadne príkazy na prepis firmvéru
-- pred prvým zápisom zálohovať aktuálny stav radiča
-- nezapisovať, kým beží iná RGB appka
-
-Ak by sa RGB radič dosky niekedy zasekol: vypni PC, vypni zdroj, podrž power ~30 s.
-
-## Spustenie
-Stiahni `whatsinside.exe` z [Releases](../../releases) alebo z poslednej úspešnej Actions zostavy a spusti. Report sa uloží aj do `whatsinside-report.json` vedľa exe.
+## Vývoj
 
 ```
-whatsinside.exe             report + JSON súbor, čaká na Enter
-whatsinside.exe --json      len JSON
-whatsinside.exe --no-pause  report bez čakania
+npx @tauri-apps/cli@2 dev      # spustí appku
+cd src-tauri && cargo test     # testy
 ```
+UI je čisté HTML/CSS/JS v `ui/` bez build kroku. V obyčajnom prehliadači sa otvorí s testovacími dátami (`ui/mock.js`).
 
-## Build
-```
-cargo build --release
-```
-Každý push na `main` zostaví exe cez GitHub Actions. Tag `v*` vytvorí Release.
+Každý push na `main` zostaví cez GitHub Actions `whatsinside.exe` (prenosná verzia) aj inštalátor. Tag `v*` vytvorí Release.
 
 ## Licencia
-GPL-2.0-only. Protokoly a ID zariadení vychádzajú z projektu [OpenRGB](https://gitlab.com/CalcProgrammer1/OpenRGB).
+GPL-2.0-only. ID zariadení vychádzajú z projektu [OpenRGB](https://gitlab.com/CalcProgrammer1/OpenRGB). Písmo Inter (SIL OFL).

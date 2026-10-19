@@ -28,7 +28,8 @@
 <aside class="side">
   <nav class="nav" id="nav">
     <div class="ind"></div>
-    <button data-view="storage" class="on"><svg viewBox="0 0 16 16"><rect x="1.8" y="3" width="12.4" height="10" rx="2"/><path d="M1.8 9.5h12.4M11.2 11.3h.01"/></svg>Úložisko</button>
+    <button data-view="helper" class="on"><svg viewBox="0 0 16 16"><path d="M8 1.6v1.6M13.2 3.8l-1.1 1.1M14.4 8.8h-1.6M2.8 3.8l1.1 1.1M1.6 8.8h1.6"/><path d="M5.6 11.2a3.6 3.6 0 1 1 4.8 0c-.5.5-.8 1-.8 1.6v.4H6.4v-.4c0-.6-.3-1.1-.8-1.6zM6.6 14.6h2.8"/></svg>Pomocník<span class="count" id="helperCount"></span></button>
+    <button data-view="storage"><svg viewBox="0 0 16 16"><rect x="1.8" y="3" width="12.4" height="10" rx="2"/><path d="M1.8 9.5h12.4M11.2 11.3h.01"/></svg>Úložisko</button>
     <button data-view="procs"><svg viewBox="0 0 16 16"><path d="M1.5 8.5h3l2-5 3 9 2-4h3"/></svg>Procesy</button>
     <button data-view="startup"><svg viewBox="0 0 16 16"><path d="M8 1.8v5.4"/><path d="M4.4 4.1a5.3 5.3 0 1 0 7.2 0"/></svg>Po spustení<span class="count" id="startupCount"></span></button>
     <button data-view="hw"><svg viewBox="0 0 16 16"><rect x="4" y="4" width="8" height="8" rx="1.6"/><path d="M6.5 1.5V4M9.5 1.5V4M6.5 12v2.5M9.5 12v2.5M1.5 6.5H4M1.5 9.5H4M12 6.5h2.5M12 9.5h2.5"/></svg>Hardvér</button>
@@ -43,8 +44,17 @@
 </aside>
 
 <main id="main">
+  <!-- Helper -->
+  <section class="view on" id="v-helper">
+    <div class="head">
+      <div><h1>Pomocník</h1><div class="sub" id="helperSub">Pozriem sa, čo sa dá na tvojom PC zlepšiť</div></div>
+      <div class="actions"><button class="btn" id="helperRefresh"><svg viewBox="0 0 16 16"><path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9M13.5 2.5v3h-3"/></svg>Skontrolovať znova</button></div>
+    </div>
+    <div id="helperBody"></div>
+  </section>
+
   <!-- Storage -->
-  <section class="view on" id="v-storage">
+  <section class="view" id="v-storage">
     <div class="head">
       <div><h1>Úložisko</h1><div class="sub">Čo ti zaberá miesto na disku</div></div>
       <div class="actions" id="storageActions"></div>
@@ -89,8 +99,18 @@
   <!-- Hardware -->
   <section class="view" id="v-hw">
     <div class="head">
-      <div><h1>Hardvér</h1><div class="sub">Čo som v tvojom PC našiel</div></div>
+      <div><h1>Hardvér</h1><div class="sub">Čo je v tvojom PC, aj na ukázanie</div></div>
+      <div class="actions" id="cardActions">
+        <button class="btn" id="cardText" title="Skopíruje zoznam ako text pre Discord"><svg viewBox="0 0 16 16"><path d="M3 4h10M3 8h10M3 12h6"/></svg>Ako text</button>
+        <button class="btn" id="cardSave"><svg viewBox="0 0 16 16"><path d="M8 2v8M4.8 7L8 10.2 11.2 7M2.5 13.5h11"/></svg>Uložiť PNG</button>
+        <button class="btn primary" id="cardCopy"><svg viewBox="0 0 16 16"><rect x="5" y="5" width="8.5" height="8.5" rx="1.8"/><path d="M11 5V3.8c0-.7-.5-1.3-1.2-1.3H3.8c-.7 0-1.3.6-1.3 1.3v6c0 .7.6 1.2 1.3 1.2H5"/></svg>Kopírovať obrázok</button>
+      </div>
     </div>
+    <div class="cardlab">
+      <div class="card preview"><canvas id="pcCanvas"></canvas></div>
+      <div class="card editor" id="cardEditor"></div>
+    </div>
+    <h2>Zistený hardvér</h2>
     <div class="hw" id="hwList"></div>
     <h2>Ovládanie RGB</h2>
     <div class="card info"><svg viewBox="0 0 16 16"><path d="M8 1.8l1.8 3.9 4.2.5-3.1 2.9.8 4.2L8 11.2l-3.7 2.1.8-4.2L2 6.2l4.2-.5z"/></svg>
@@ -100,6 +120,7 @@
 </main>
 
 <div class="tip" id="tip"></div>
+<div class="toasts" id="toasts"></div>
 <script src="mock.js"></script>
 <script src="app.js"></script>
 </body>

@@ -12,6 +12,7 @@ mod hw;
 mod known;
 mod procs;
 mod storage;
+mod system;
 
 use std::sync::Mutex;
 use tauri::State;
@@ -100,6 +101,83 @@ async fn storage_reveal(state: State<'_, AppState>, path: String) -> Result<(), 
     reveal(&path)
 }
 
+#[tauri::command]
+async fn storage_owners(state: State<'_, AppState>) -> Result<storage::Owners, String> {
+    Ok(state.scanner.with_tree(|t| t.owners()).unwrap_or_default())
+}
+
+#[tauri::command]
+async fn storage_old(state: State<'_, AppState>) -> Result<Vec<storage::OldFile>, String> {
+    Ok(state
+        .scanner
+        .with_tree(|t| t.old_files.clone())
+        .unwrap_or_default())
+}
+
+#[tauri::command]
+async fn storage_search(
+    state: State<'_, AppState>,
+    query: String,
+) -> Result<Vec<storage::Hit>, String> {
+    Ok(state
+        .scanner
+        .with_tree(|t| t.search(&query, 200))
+        .unwrap_or_default())
+}
+
+#[derive(serde::Serialize)]
+struct Quick {
+    caches: Vec<storage::QuickHit>,
+    installers: Vec<storage::OldFile>,
+}
+
+/// Sizes the well-known cleanup spots without a full scan (a second or two).
+#[tauri::command]
+async fn quick_check() -> Quick {
+    let downloads = std::env::var("USERPROFILE")
+        .ok()
+        .map(|u| std::path::PathBuf::from(u).join("Downloads"));
+    let (caches, installers) = storage::quick_check(&storage::quick_check_paths(), downloads);
+    Quick { caches, installers }
+}
+
+#[tauri::command]
+async fn system_facts() -> system::Facts {
+    system::facts()
+}
+
+#[tauri::command]
+async fn pc_specs() -> system::Specs {
+    system::specs()
+}
+
+/// Saves the share card PNG to Pictures\WhatsInside and shows it in Explorer.
+#[tauri::command]
+async fn save_card(png_base64: String) -> Result<String, String> {
+    use base64::Engine;
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(png_base64.trim_start_matches("data:image/png;base64,"))
+        .map_err(|e| e.to_string())?;
+    if !bytes.starts_with(&[0x89, b'P', b'N', b'G']) {
+        return Err("Neplatný obrázok.".into());
+    }
+    let home = std::env::var("USERPROFILE")
+        .map_err(|_| "Nenašiel som priečinok používateľa.".to_string())?;
+    let dir = std::path::Path::new(&home)
+        .join("Pictures")
+        .join("WhatsInside");
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let secs = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    let path = dir.join(format!("WhatsInside-PC-{secs}.png"));
+    std::fs::write(&path, bytes).map_err(|e| e.to_string())?;
+    let p = path.to_string_lossy().into_owned();
+    let _ = reveal(&p);
+    Ok(p)
+}
+
 #[cfg(windows)]
 fn reveal(path: &str) -> Result<(), String> {
     use std::os::windows::process::CommandExt;
@@ -133,6 +211,13 @@ fn main() {
             storage_top_files,
             storage_caches,
             storage_reveal,
+            storage_owners,
+            storage_old,
+            storage_search,
+            quick_check,
+            system_facts,
+            pc_specs,
+            save_card,
         ])
         .run(tauri::generate_context!())
         .expect("WhatsInside sa nepodarilo spustiť");

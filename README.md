@@ -4,19 +4,19 @@
 
 Nič nemení ani nemaže. Keď ju zavrieš, nebeží nič: žiadna služba, žiadny tray.
 
-## Čo vie (v0.2)
+## Čo vie (v0.3)
 
-- **Úložisko**: paralelný scan disku, treemap s preklikom do priečinkov, najväčšie súbory, cache, ktorú sa dá bezpečne uvoľniť (DaVinci Resolve, Adobe, shader cache, Temp, aktualizácie Windowsu…). Súbory z OneDrive, ktoré sú len online, nerátam.
-- **Procesy**: živý prehľad zoskupený podľa appky (napr. 4 procesy GIGABYTE Control Center ako jedna položka), CPU / RAM / disk a vysvetlenie pri známych appkách.
-- **Po spustení**: čo sa spúšťa s Windowsom, vrátane služieb tretích strán (tak sa spúšťajú MSI Center aj GCC).
-- **Hardvér**: podporované RGB radiče a grafika, plus koľko RAM ťa stoja výrobcovské RGB appky.
+- **Pomocník**: skontroluje disky, cache, inštalačky v Stiahnutých, hibernáciu, pamäť, RGB appky, automatické spúšťanie, plán napájania, Herný režim a HAGS. Ku každej veci povie prečo a ako to spraviť, sám nič nemení.
+- **Úložisko**: paralelný scan, treemap s plynulým priblížením pri vstupe do priečinka, vyhľadávanie, označenie hier (Steam, Epic, Xbox, GOG, Riot, Ubisoft, EA) a programov, najväčšie súbory, staré a zabudnuté súbory, cache na uvoľnenie.
+- **Procesy**: živý prehľad zoskupený podľa appky s vysvetlením.
+- **Po spustení**: Run kľúče, priečinok Po spustení a služby tretích strán.
+- **Hardvér**: karta PC na zdieľanie (Discord): zistí procesor, grafiku aj s VRAM, dosku, RAM (typ, rýchlosť, výrobca zo SMBIOS), disky a systém; ostatné doplníš sám. Kopírovanie obrázka do schránky, uloženie PNG alebo text.
 
 ## Plán
 
 | Verzia | Čo |
 |---|---|
-| v0.3 | vypínanie z autostartu (cez rovnaký prepínač ako Správca úloh), mazanie cache do Koša |
-| ďalej | scan cez MFT (rýchlosť ako WizTree), diagnostika (teploty, throttling), ovládanie RGB |
+| ďalej | vypínanie z autostartu, mazanie cache do Koša, scan cez MFT, diagnostika (teploty, throttling), ovládanie RGB |
 
 ## Podporovaný hardvér (RGB, zatiaľ len detekcia)
 

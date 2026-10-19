@@ -33,6 +33,7 @@ pub struct Gpu {
 #[derive(Serialize, Clone)]
 pub struct ConflictProcess {
     pub app: &'static str,
+    pub peripheral: bool,
     pub controls: &'static str,
     pub exe: String,
     pub pid: u32,
@@ -43,6 +44,7 @@ pub struct ConflictProcess {
 #[derive(Serialize, Clone)]
 pub struct AutostartEntry {
     pub app: &'static str,
+    pub peripheral: bool,
     pub location: String,
     pub name: String,
     pub command: String,
@@ -69,6 +71,7 @@ impl Report {
         // --- RGB controllers -------------------------------------------
         line("■ RGB radiče (USB)");
         let mut seen_any = false;
+        let mut printed = std::collections::HashSet::new();
         for d in &self.hid {
             match known::find_hid(d.vid, d.pid, d.usage_page) {
                 Some(k) if k.role == HidRole::Rgb => {
@@ -85,6 +88,9 @@ impl Report {
                             .any(|k| k.vid == d.vid && k.pid == d.pid)
                         {
                             continue; // known device, just another interface
+                        }
+                        if !printed.insert((d.vid, d.pid)) {
+                            continue; // same device, another interface
                         }
                         seen_any = true;
                         line(&format!(
@@ -140,53 +146,38 @@ impl Report {
         line("");
 
         // --- Conflicting software ------------------------------------------
-        line("■ Appky, ktoré sa môžu biť o RGB");
-        if self.processes.is_empty() && self.autostart.is_empty() {
+        let blocking = self.app_group(false);
+        let peripheral = self.app_group(true);
+
+        line("■ Appky, ktoré sa bijú s tvojím hardvérom");
+        if blocking.is_empty() {
             line("  ✔ nič nebeží a nič sa nespúšťa pri štarte");
         } else {
-            let mut apps: Vec<&str> = self
+            for app in &blocking {
+                self.render_app(app, &mut line);
+            }
+            let ram: u64 = self
                 .processes
                 .iter()
-                .map(|p| p.app)
-                .chain(self.autostart.iter().map(|a| a.app))
-                .collect();
-            apps.sort_unstable();
-            apps.dedup();
-            for app in apps {
-                let procs: Vec<_> = self.processes.iter().filter(|p| p.app == app).collect();
-                let ram: u64 = procs.iter().filter_map(|p| p.ram_bytes).sum();
-                let controls = procs
-                    .first()
-                    .map(|p| p.controls)
-                    .or_else(|| {
-                        known::CONFLICT_APPS
-                            .iter()
-                            .find(|a| a.name == app)
-                            .map(|a| a.controls)
-                    })
-                    .unwrap_or("");
-                line(&format!("  ⚠ {}  (ovláda {})", app, controls));
-                if !procs.is_empty() {
-                    let ram_txt = if ram > 0 {
-                        format!(", spolu {}", mb(ram))
-                    } else {
-                        String::new()
-                    };
-                    line(&format!("      beží {} procesov{}:", procs.len(), ram_txt));
-                    for p in procs {
-                        let r = p.ram_bytes.map(mb).unwrap_or_else(|| "? MB".into());
-                        line(&format!("        {} (PID {}, {})", p.exe, p.pid, r));
-                    }
-                }
-                for a in self.autostart.iter().filter(|a| a.app == app) {
-                    line(&format!(
-                        "      spúšťa sa pri štarte: {} → {}",
-                        a.location, a.name
-                    ));
-                }
-            }
+                .filter(|p| !p.peripheral)
+                .filter_map(|p| p.ram_bytes)
+                .sum();
             line("");
-            line("  Kým tieto appky bežia, naša appka do hardvéru zapisovať nebude.");
+            line(&format!(
+                "  Tieto appky teraz držia v RAM {}. WhatsInside v pozadí: 0 MB.",
+                mb(ram)
+            ));
+            line("  Kým bežia, naša appka do hardvéru zapisovať nebude.");
+        }
+        line("");
+
+        if !peripheral.is_empty() {
+            line("■ Ostatné RGB appky (periférie, neprekážajú)");
+            for app in &peripheral {
+                self.render_app(app, &mut line);
+            }
+            line("  Tieto nechaj, ak ich používaš na nastavenia myši/slúchadiel.");
+            line("");
         }
 
         if !self.errors.is_empty() {
@@ -197,6 +188,54 @@ impl Report {
             }
         }
         o
+    }
+
+    /// Distinct app names in one group, in a stable order.
+    fn app_group(&self, peripheral: bool) -> Vec<&'static str> {
+        let mut apps: Vec<&'static str> = self
+            .processes
+            .iter()
+            .filter(|p| p.peripheral == peripheral)
+            .map(|p| p.app)
+            .chain(
+                self.autostart
+                    .iter()
+                    .filter(|a| a.peripheral == peripheral)
+                    .map(|a| a.app),
+            )
+            .collect();
+        apps.sort_unstable();
+        apps.dedup();
+        apps
+    }
+
+    fn render_app(&self, app: &str, line: &mut impl FnMut(&str)) {
+        let procs: Vec<_> = self.processes.iter().filter(|p| p.app == app).collect();
+        let ram: u64 = procs.iter().filter_map(|p| p.ram_bytes).sum();
+        let controls = known::CONFLICT_APPS
+            .iter()
+            .find(|a| a.name == app)
+            .map(|a| a.controls)
+            .unwrap_or("");
+        line(&format!("  ⚠ {}  (ovláda {})", app, controls));
+        if !procs.is_empty() {
+            let ram_txt = if ram > 0 {
+                format!(", spolu {}", mb(ram))
+            } else {
+                String::new()
+            };
+            line(&format!("      procesy: {}{}", procs.len(), ram_txt));
+            for p in procs {
+                let r = p.ram_bytes.map(mb).unwrap_or_else(|| "? MB".into());
+                line(&format!("        {} (PID {}, {})", p.exe, p.pid, r));
+            }
+        }
+        for a in self.autostart.iter().filter(|a| a.app == app) {
+            line(&format!(
+                "      spúšťa sa pri štarte: {} → {}",
+                a.location, a.name
+            ));
+        }
     }
 }
 
@@ -223,6 +262,7 @@ mod tests {
             nvapi_present: true,
             processes: vec![ConflictProcess {
                 app: "MSI Center / Mystic Light",
+                peripheral: false,
                 controls: "RGB dosky a ARGB headerov",
                 exe: "LEDKeeper2.exe".into(),
                 pid: 42,

@@ -53,7 +53,6 @@ pub const RGB_VENDORS: &[(u16, &str)] = &[
     (0x0B05, "ASUS"),
     (0x1B1C, "Corsair"),
     (0x1532, "Razer"),
-    (0x046D, "Logitech"),
     (0x1E71, "NZXT"),
     (0x2516, "Cooler Master"),
     (0x0CF2, "Lian Li / ENE"),
@@ -152,6 +151,9 @@ pub struct ConflictApp {
     /// Lower-case substrings matched against the process exe name and full
     /// path. Kept specific on purpose: "msi" alone would match msiexec.exe.
     pub patterns: &'static [&'static str],
+    /// Peripheral software (mouse, headset…). It does not touch the
+    /// board/GPU controllers, so it doesn't block us; we only mention it.
+    pub peripheral: bool,
 }
 
 pub const CONFLICT_APPS: &[ConflictApp] = &[
@@ -168,6 +170,7 @@ pub const CONFLICT_APPS: &[ConflictApp] = &[
             "\\msi\\one dragon",
             "msi.terminalserver",
         ],
+        peripheral: false,
     },
     ConflictApp {
         name: "GIGABYTE Control Center",
@@ -179,16 +182,19 @@ pub const CONFLICT_APPS: &[ConflictApp] = &[
             "rgbfusion",
             "rgb fusion",
         ],
+        peripheral: false,
     },
     ConflictApp {
         name: "SignalRGB",
         controls: "RGB všetkého, čo podporuje",
         patterns: &["signalrgb"],
+        peripheral: false,
     },
     ConflictApp {
         name: "OpenRGB",
         controls: "RGB všetkého, čo podporuje",
         patterns: &["openrgb"],
+        peripheral: false,
     },
     ConflictApp {
         name: "ASUS Armoury Crate / Aura",
@@ -199,26 +205,31 @@ pub const CONFLICT_APPS: &[ConflictApp] = &[
             "lightingservice",
             "aura service",
         ],
+        peripheral: false,
     },
     ConflictApp {
         name: "Corsair iCUE",
         controls: "RGB Corsair zariadení",
         patterns: &["icue"],
+        peripheral: false,
     },
     ConflictApp {
         name: "Razer Synapse",
         controls: "RGB Razer zariadení",
         patterns: &["razer synapse", "razersynapse", "rzsynapse"],
+        peripheral: true,
     },
     ConflictApp {
         name: "NZXT CAM",
         controls: "RGB a vetráky NZXT",
         patterns: &["nzxt cam"],
+        peripheral: false,
     },
     ConflictApp {
         name: "Logitech G HUB",
         controls: "RGB Logitech periférií",
         patterns: &["lghub"],
+        peripheral: true,
     },
 ];
 
@@ -283,5 +294,7 @@ mod tests {
         );
         assert!(match_conflict("msiexec.exe", Some(r"C:\Windows\System32\msiexec.exe")).is_none());
         assert!(match_conflict("explorer.exe", None).is_none());
+        assert!(match_conflict("lghub_agent.exe", None).unwrap().peripheral);
+        assert!(!match_conflict("GCC.exe", None).unwrap().peripheral);
     }
 }

@@ -1,6 +1,6 @@
 [package]
 name = "whatsinside"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 license = "GPL-2.0-only"
 description = "Lightweight hardware/RGB utility for Windows (WheresTheApp family). v0.1 is read-only: it detects devices and conflicting vendor apps, it never writes to hardware."

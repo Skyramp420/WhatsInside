@@ -170,6 +170,7 @@ mod win {
                 if let Some(app) = known::match_conflict(&exe, path.as_deref()) {
                     out.push(ConflictProcess {
                         app: app.name,
+                        peripheral: app.peripheral,
                         controls: app.controls,
                         exe,
                         pid,
@@ -206,6 +207,7 @@ mod win {
                 if let Some(app) = known::match_conflict(&name, Some(&command)) {
                     out.push(AutostartEntry {
                         app: app.name,
+                        peripheral: app.peripheral,
                         location: key.to_string(),
                         name,
                         command,

@@ -278,6 +278,7 @@ function renderStorage() {
       </div>
       <div class="owner" id="ownerBar" hidden></div>
       <div class="card treemap land" id="tmCard" style="--i:4"></div>
+      <div class="legend"><span style="--c:var(--lilac)">Hry</span><span style="--c:var(--blue)">Programy</span><span style="--c:var(--amber)">Dá sa uvoľniť</span><span style="--c:var(--faint)">Systém</span><span style="--c:var(--mint)">Ostatné</span></div>
       <div class="tabrow"><div class="seg" id="stab"><div class="knob"></div>${TABS.map(([k, l]) => `<button data-k="${k}" class="${st.tab === k ? 'on' : ''}">${l}</button>`).join('')}</div><span id="resultsInfo"></span></div>
       <div class="card list" id="slist"></div>
       ${notes.length ? `<div class="note">${notes.map(esc).join('<br>')}</div>` : ''}
@@ -481,7 +482,8 @@ function drawTreemap(mode = null, fromRect = null, prev = null) {
     layer.innerHTML = `<div class="empty">${ICON.dir}Tento priečinok je prázdny.</div>`;
   } else {
     const inherited = l.crumbs.map((c) => st.colors.get(c.id)).find(Boolean);
-    const color = (n, i) => (n.kind === 'file' ? 'var(--muted)' : n.kind !== 'dir' ? 'var(--faint)' : st.colors.get(n.id) || inherited || PALETTE[i % PALETTE.length]);
+    const KCOL = { game: 'var(--lilac)', app: 'var(--blue)', cache: 'var(--amber)', system: 'var(--faint)' };
+    const color = (n, i) => (n.kind === 'file' ? 'var(--muted)' : n.kind !== 'dir' ? 'var(--faint)' : KCOL[n.tag?.kind] || st.colors.get(n.id) || inherited || PALETTE[i % PALETTE.length]);
     const rects = squarify(kids.map((k) => k.size), 0, 0, W, H);
     const G = 3;
     kids.forEach((n, i) => {

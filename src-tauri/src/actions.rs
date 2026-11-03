@@ -6,13 +6,16 @@
 //! - Scheduled tasks: disabled, not deleted.
 //! - Services: switched to manual start, not disabled, so anything that
 //!   really needs one can still start it.
-//! - Processes: ended, never for Windows itself.
+//! - Tweaks: registry values or the power plan, each with a Windows-default
+//!   "off" state (see `tweaks`).
+//! - Processes: ended, never for Windows itself. Logged, but can't be undone.
 //!
 //! Things that need admin rights are collected and run in one elevated copy
 //! of ourselves (`--apply in.json out.json`), so the user sees one UAC prompt
 //! instead of one per item.
 
 use crate::autostart::Toggle;
+use crate::tweaks::{self, Cmd};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::path::PathBuf;
@@ -46,18 +49,21 @@ pub struct Change {
     pub at: u64,
     pub id: String,
     pub name: String,
-    pub toggle: Toggle,
+    /// `None` for things that can't be undone (an ended process).
+    #[serde(default)]
+    pub toggle: Option<Toggle>,
     /// State after the change.
     pub enabled: bool,
     #[serde(default)]
     pub undone: bool,
 }
 
-/// The exact command that performs a startup change. Kept separate so it can
-/// be tested without Windows.
-pub fn command_for(toggle: &Toggle, enable: bool) -> (&'static str, Vec<String>) {
+/// The exact commands that perform a change. Kept separate so they can be
+/// tested without Windows.
+pub fn commands_for(toggle: &Toggle, enable: bool) -> Vec<Cmd> {
+    let one = |exe: &'static str, args: Vec<String>| vec![Cmd { exe, args, ignore_err: false }];
     match toggle {
-        Toggle::Approved { hive, key, name } => (
+        Toggle::Approved { hive, key, name } => one(
             "reg",
             vec![
                 "add".into(),
@@ -71,7 +77,7 @@ pub fn command_for(toggle: &Toggle, enable: bool) -> (&'static str, Vec<String>)
                 "/f".into(),
             ],
         ),
-        Toggle::Task { path } => (
+        Toggle::Task { path } => one(
             "schtasks",
             vec![
                 "/Change".into(),
@@ -80,7 +86,7 @@ pub fn command_for(toggle: &Toggle, enable: bool) -> (&'static str, Vec<String>)
                 if enable { "/ENABLE" } else { "/DISABLE" }.into(),
             ],
         ),
-        Toggle::Service { name, on } => (
+        Toggle::Service { name, on } => one(
             "sc",
             vec![
                 "config".into(),
@@ -89,18 +95,19 @@ pub fn command_for(toggle: &Toggle, enable: bool) -> (&'static str, Vec<String>)
                 if enable { on.clone() } else { "demand".into() },
             ],
         ),
+        Toggle::Tweak { key } => tweaks::find(key)
+            .map(|t| tweaks::commands(t, enable))
+            .unwrap_or_default(),
     }
 }
 
 /// Services always need admin; others are tried as the user first.
 fn always_admin(a: &Action) -> bool {
-    matches!(
-        a,
-        Action::Startup {
-            toggle: Toggle::Service { .. },
-            ..
-        }
-    )
+    match a {
+        Action::Startup { toggle: Toggle::Service { .. }, .. } => true,
+        Action::Startup { toggle: Toggle::Tweak { key }, .. } => tweaks::find(key).is_some_and(|t| t.admin),
+        _ => false,
+    }
 }
 
 fn data_dir() -> Option<PathBuf> {
@@ -135,7 +142,7 @@ pub fn changed_services() -> HashSet<String> {
     changes()
         .into_iter()
         .filter_map(|c| match c.toggle {
-            Toggle::Service { name, .. } => Some(name.to_lowercase()),
+            Some(Toggle::Service { name, .. }) => Some(name.to_lowercase()),
             _ => None,
         })
         .collect()
@@ -193,15 +200,26 @@ pub fn apply(actions: Vec<Action>) -> Vec<Outcome> {
     // Log what worked.
     let mut log = changes();
     for (a, o) in actions.iter().zip(&out) {
-        if let (true, Action::Startup { id, name, toggle, enable }) = (o.ok, a) {
-            log.push(Change {
+        if !o.ok {
+            continue;
+        }
+        match a {
+            Action::Startup { id, name, toggle, enable } => log.push(Change {
                 at: now(),
                 id: id.clone(),
                 name: name.clone(),
-                toggle: toggle.clone(),
+                toggle: Some(toggle.clone()),
                 enabled: *enable,
                 undone: false,
-            });
+            }),
+            Action::Kill { pid, exe } => log.push(Change {
+                at: now(),
+                id: format!("kill:{pid}"),
+                name: exe.clone(),
+                toggle: None,
+                enabled: false,
+                undone: false,
+            }),
         }
     }
     if log.len() > 300 {
@@ -219,10 +237,11 @@ pub fn undo(index: usize) -> Result<(), String> {
     if c.undone {
         return Err("Táto zmena už bola vrátená.".into());
     }
+    let toggle = c.toggle.clone().ok_or("Ukončený proces sa vrátiť nedá.")?;
     let res = apply(vec![Action::Startup {
         id: c.id.clone(),
         name: c.name.clone(),
-        toggle: c.toggle.clone(),
+        toggle,
         enable: !c.enabled,
     }]);
     let r = res.into_iter().next().unwrap_or_default();
@@ -259,7 +278,7 @@ pub fn run_batch(input: &str, output: &str) {
 
 #[cfg(windows)]
 mod platform {
-    use super::{command_for, Action, Outcome};
+    use super::{commands_for, Action, Outcome};
     use crate::catalog;
     use std::os::windows::process::CommandExt;
     use windows::core::PCWSTR;
@@ -285,23 +304,27 @@ mod platform {
     pub fn apply_one(a: &Action) -> Result<(), String> {
         match a {
             Action::Startup { toggle, enable, .. } => {
-                let (cmd, args) = command_for(toggle, *enable);
-                let o = std::process::Command::new(cmd)
-                    .args(&args)
-                    .creation_flags(CREATE_NO_WINDOW)
-                    .output()
-                    .map_err(|e| e.to_string())?;
-                if o.status.success() {
-                    Ok(())
-                } else {
-                    let msg = crate::autostart::decode(&o.stderr);
-                    let msg = if msg.trim().is_empty() {
-                        crate::autostart::decode(&o.stdout)
-                    } else {
-                        msg
-                    };
-                    Err(msg.trim().lines().last().unwrap_or("Nepodarilo sa.").to_string())
+                let cmds = commands_for(toggle, *enable);
+                if cmds.is_empty() {
+                    return Err("Neznáma zmena.".into());
                 }
+                for c in cmds {
+                    let o = std::process::Command::new(c.exe)
+                        .args(&c.args)
+                        .creation_flags(CREATE_NO_WINDOW)
+                        .output()
+                        .map_err(|e| e.to_string())?;
+                    if !o.status.success() && !c.ignore_err {
+                        let msg = crate::autostart::decode(&o.stderr);
+                        let msg = if msg.trim().is_empty() {
+                            crate::autostart::decode(&o.stdout)
+                        } else {
+                            msg
+                        };
+                        return Err(msg.trim().lines().last().unwrap_or("Nepodarilo sa.").to_string());
+                    }
+                }
+                Ok(())
             }
             Action::Kill { pid, exe } => kill(*pid, exe),
         }
@@ -409,7 +432,7 @@ mod tests {
 
     #[test]
     fn builds_the_same_commands_task_manager_would() {
-        let (c, a) = command_for(
+        let c = commands_for(
             &Toggle::Approved {
                 hive: "HKCU".into(),
                 key: r"Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run".into(),
@@ -417,24 +440,32 @@ mod tests {
             },
             false,
         );
-        assert_eq!(c, "reg");
-        assert_eq!(a[3], "Discord");
-        assert_eq!(a[7], "030000000000000000000000");
+        assert_eq!(c[0].exe, "reg");
+        assert_eq!(c[0].args[3], "Discord");
+        assert_eq!(c[0].args[7], "030000000000000000000000");
 
-        let (c, a) = command_for(&Toggle::Service { name: "edgeupdate".into(), on: "delayed-auto".into() }, false);
-        assert_eq!((c, a.join(" ").as_str()), ("sc", "config edgeupdate start= demand"));
-        let (_, a) = command_for(&Toggle::Service { name: "edgeupdate".into(), on: "delayed-auto".into() }, true);
-        assert_eq!(a[3], "delayed-auto");
+        let c = commands_for(&Toggle::Service { name: "edgeupdate".into(), on: "delayed-auto".into() }, false);
+        assert_eq!((c[0].exe, c[0].args.join(" ").as_str()), ("sc", "config edgeupdate start= demand"));
+        let c = commands_for(&Toggle::Service { name: "edgeupdate".into(), on: "delayed-auto".into() }, true);
+        assert_eq!(c[0].args[3], "delayed-auto");
 
-        let (c, a) = command_for(&Toggle::Task { path: r"\MSI\LEDKeeper".into() }, true);
-        assert_eq!((c, a.join(" ").as_str()), ("schtasks", r"/Change /TN \MSI\LEDKeeper /ENABLE"));
+        let c = commands_for(&Toggle::Task { path: r"\MSI\LEDKeeper".into() }, true);
+        assert_eq!((c[0].exe, c[0].args.join(" ").as_str()), ("schtasks", r"/Change /TN \MSI\LEDKeeper /ENABLE"));
+
+        let c = commands_for(&Toggle::Tweak { key: "game_dvr".into() }, true);
+        assert_eq!(c.len(), 2);
+        assert!(commands_for(&Toggle::Tweak { key: "nope".into() }, true).is_empty());
+        assert!(always_admin(&Action::Startup { id: String::new(), name: String::new(), toggle: Toggle::Tweak { key: "hags".into() }, enable: true }));
     }
 
     #[test]
     fn actions_round_trip_through_json() {
-        let json = r#"[{"op":"startup","id":"task:\\msi\\x","name":"X","toggle":{"t":"task","path":"\\MSI\\X"},"enable":false},{"op":"kill","pid":42,"exe":"steam.exe"}]"#;
+        let json = r#"[{"op":"startup","id":"task:\\msi\\x","name":"X","toggle":{"t":"task","path":"\\MSI\\X"},"enable":false},{"op":"kill","pid":42,"exe":"steam.exe"},{"op":"startup","id":"tweak:tips","name":"Tipy","toggle":{"t":"tweak","key":"tips"},"enable":true}]"#;
         let a: Vec<Action> = serde_json::from_str(json).unwrap();
-        assert_eq!(a.len(), 2);
+        assert_eq!(a.len(), 3);
+        // Old log entries (before kills were logged) still load.
+        let old: Change = serde_json::from_str(r#"{"at":1,"id":"x","name":"X","toggle":{"t":"task","path":"\\X"},"enabled":false}"#).unwrap();
+        assert!(old.toggle.is_some() && !old.undone);
         assert!(always_admin(&Action::Startup { id: String::new(), name: String::new(), toggle: Toggle::Service { name: "x".into(), on: "auto".into() }, enable: true }));
         assert!(!always_admin(&a[0]));
     }

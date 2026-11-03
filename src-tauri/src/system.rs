@@ -73,6 +73,86 @@ pub struct RamModule {
     pub kind: String,
     pub manufacturer: String,
     pub part: String,
+    /// What the kit is sold as (XMP/EXPO), read from the part number.
+    pub rated_speed: Option<u32>,
+    /// Memory channel from the slot name ("Controller0-ChannelA", "A"…).
+    pub channel: Option<String>,
+}
+
+/// Speeds RAM kits are sold at. Timings like 3038 in "F5-6000J3038F16G"
+/// are not in the list, so they don't get mistaken for a speed.
+const KIT_SPEEDS: &[u32] = &[
+    2133, 2400, 2666, 2933, 3000, 3200, 3466, 3600, 3733, 3800, 3866, 4000, 4133, 4266, 4400,
+    4800, 5200, 5600, 6000, 6200, 6400, 6600, 6800, 7000, 7200, 7600, 8000, 8200, 8400,
+];
+
+/// Rated kit speed from a part number, e.g. "F5-6000J3038F16G" → 6000,
+/// "KF560C36BBEK2-32" (Kingston) → 6000, "BL2K16G36C16U4B" (Crucial) → 3600.
+pub fn rated_speed_from_part(part: &str) -> Option<u32> {
+    let p = part.to_uppercase();
+    let b = p.as_bytes();
+    let mut found: Vec<u32> = Vec::new();
+    let push = |found: &mut Vec<u32>, v: u32| {
+        if KIT_SPEEDS.contains(&v) {
+            found.push(v);
+        }
+    };
+    // Runs of exactly four digits.
+    let mut i = 0;
+    while i < b.len() {
+        if b[i].is_ascii_digit() {
+            let start = i;
+            while i < b.len() && b[i].is_ascii_digit() {
+                i += 1;
+            }
+            if i - start == 4 {
+                push(&mut found, p[start..i].parse().unwrap_or(0));
+            }
+        } else {
+            i += 1;
+        }
+    }
+    // Kingston: KF + generation digit + two speed digits + C.
+    if let Some(rest) = p.strip_prefix("KF") {
+        let r = rest.as_bytes();
+        if r.len() >= 4 && r[0].is_ascii_digit() && r[1].is_ascii_digit() && r[2].is_ascii_digit() && r[3] == b'C' {
+            push(&mut found, rest[1..3].parse::<u32>().unwrap_or(0) * 100);
+        }
+    }
+    // Crucial / others: "16G36C16" → 36 → 3600.
+    if found.is_empty() {
+        for w in b.windows(5) {
+            if w[0] == b'G' && w[1].is_ascii_digit() && w[2].is_ascii_digit() && w[3] == b'C' && w[4].is_ascii_digit() {
+                push(&mut found, ((w[1] - b'0') as u32 * 10 + (w[2] - b'0') as u32) * 100);
+            }
+        }
+    }
+    found.into_iter().max()
+}
+
+/// Channel of a slot name, so two sticks in the same channel can be spotted.
+/// "Controller0-ChannelA-DIMM1" → "0A", "DIMM_B2" / "ChannelB-DIMM0" / "B1" → "B".
+pub fn channel_of(slot: &str) -> Option<String> {
+    let s = slot.to_uppercase();
+    if let Some(i) = s.find("CHANNEL") {
+        let ch = s[i + 7..].trim_start_matches(['-', '_', ' ']).chars().next()?;
+        if !ch.is_ascii_alphabetic() {
+            return None;
+        }
+        let ctrl = s
+            .find("CONTROLLER")
+            .and_then(|c| s[c + 10..].chars().next())
+            .filter(|c| c.is_ascii_digit())
+            .map(|c| c.to_string())
+            .unwrap_or_default();
+        return Some(format!("{ctrl}{ch}"));
+    }
+    let t = s.trim_start_matches("DIMM").trim_start_matches(['_', '-', ' ']);
+    let mut c = t.chars();
+    match (c.next(), c.next(), c.next()) {
+        (Some(a), Some(d), None) if a.is_ascii_alphabetic() && d.is_ascii_digit() => Some(a.to_string()),
+        _ => None,
+    }
 }
 
 /// Parses the raw SMBIOS table returned by `GetSystemFirmwareTable('RSMB')`
@@ -156,6 +236,8 @@ pub fn parse_smbios_memory(raw: &[u8]) -> Vec<RamModule> {
                     configured_speed: w(0x20) as u32,
                     kind: memory_kind(formatted.get(0x12).copied().unwrap_or(0)).to_string(),
                     manufacturer: s(0x17),
+                    rated_speed: rated_speed_from_part(&s(0x1A)),
+                    channel: channel_of(&s(0x10)),
                     part: s(0x1A),
                 });
             }
@@ -225,6 +307,9 @@ pub fn pretty_vendor(s: &str) -> String {
 pub struct Gpu {
     pub name: String,
     pub vram: u64,
+    /// "M-D-YYYY" as Windows stores it.
+    pub driver_date: String,
+    pub driver_version: String,
 }
 
 #[derive(Serialize, Clone, Debug, Default)]
@@ -250,6 +335,8 @@ pub struct Facts {
     pub hiberfil_bytes: Option<u64>,
     pub os: String,
     pub build: u32,
+    /// Laptop on battery power matters for power-plan advice.
+    pub has_battery: bool,
 }
 
 /// Windows 11 still reports "Windows 10" in ProductName; the build tells the truth.
@@ -350,7 +437,14 @@ mod platform {
             .ok()
             .map(|m| m.len());
         let (os, build) = os();
+        let has_battery = unsafe {
+            let mut ps = windows::Win32::System::Power::SYSTEM_POWER_STATUS::default();
+            windows::Win32::System::Power::GetSystemPowerStatus(&mut ps).is_ok()
+                && ps.BatteryFlag != 128
+                && ps.BatteryFlag != 255
+        };
         Facts {
+            has_battery,
             power_guid,
             power_name,
             // Missing value = Windows default, which is on.
@@ -460,7 +554,12 @@ mod platform {
             let vram = get("HardwareInformation.qwMemorySize")
                 .and_then(|v| reg_number(&v))
                 .unwrap_or(0);
-            out.push(Gpu { name, vram });
+            out.push(Gpu {
+                name,
+                vram,
+                driver_date: get("DriverDate").unwrap_or_default(),
+                driver_version: get("DriverVersion").unwrap_or_default(),
+            });
         }
         out
     }
@@ -626,5 +725,21 @@ mod tests {
         assert_eq!(m[0].manufacturer, "G Skill Intl");
         assert_eq!(m[0].part, "F5-6400J3239G16G");
         assert_eq!(m[1].slot, "DIMMB2");
+    }
+
+    #[test]
+    fn reads_kit_speed_and_channel() {
+        assert_eq!(rated_speed_from_part("F5-6000J3038F16G"), Some(6000));
+        assert_eq!(rated_speed_from_part("CMK32GX5M2B6000C36"), Some(6000));
+        assert_eq!(rated_speed_from_part("KF560C36BBEK2-32"), Some(6000));
+        assert_eq!(rated_speed_from_part("KF432C16BB/16"), Some(3200));
+        assert_eq!(rated_speed_from_part("BL2K16G36C16U4B"), Some(3600));
+        assert_eq!(rated_speed_from_part("M425R1GB4BB0-CQKOL"), None);
+        assert_eq!(channel_of("Controller0-ChannelA-DIMM1").as_deref(), Some("0A"));
+        assert_eq!(channel_of("Controller1-ChannelA-DIMM1").as_deref(), Some("1A"));
+        assert_eq!(channel_of("DIMM_B2").as_deref(), Some("B"));
+        assert_eq!(channel_of("ChannelB-DIMM0").as_deref(), Some("B"));
+        assert_eq!(channel_of("A1").as_deref(), Some("A"));
+        assert_eq!(channel_of("DIMM 0"), None);
     }
 }

@@ -10,11 +10,13 @@
 mod actions;
 mod autostart;
 mod catalog;
+mod display;
 mod hw;
 mod known;
 mod procs;
 mod storage;
 mod system;
+mod tweaks;
 mod update;
 
 use std::sync::Mutex;
@@ -49,6 +51,16 @@ async fn changes_list() -> Vec<actions::Change> {
 #[tauri::command]
 async fn changes_undo(index: usize) -> Result<(), String> {
     actions::undo(index)
+}
+
+#[tauri::command]
+async fn tweaks_list() -> Vec<tweaks::State> {
+    tweaks::list()
+}
+
+#[tauri::command]
+async fn displays_list() -> Vec<display::Display> {
+    display::list()
 }
 
 #[tauri::command]
@@ -262,6 +274,8 @@ fn main() {
             changes_undo,
             update_check,
             update_install,
+            tweaks_list,
+            displays_list,
         ])
         .run(tauri::generate_context!())
         .expect("WhatsInside sa nepodarilo spustiť");

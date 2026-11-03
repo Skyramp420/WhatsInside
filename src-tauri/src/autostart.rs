@@ -29,6 +29,8 @@ pub enum Toggle {
     Task { path: String },
     /// Service: off = manual start, on = `on` ("auto" or "delayed-auto").
     Service { name: String, on: String },
+    /// A system tweak from `tweaks::TWEAKS`, by key.
+    Tweak { key: String },
 }
 
 #[derive(Serialize, Clone, Debug)]

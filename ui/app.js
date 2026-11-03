@@ -166,7 +166,7 @@ function setStatus(title, text, dot = 'mint', progress = null) {
   bar.hidden = progress === null;
   if (progress !== null) $('i', bar).style.width = `${Math.round(progress * 100)}%`;
 }
-const idleStatus = () => setStatus('Len sa pozerám', 'Nič nemením ani nemažem. Keď ma zavrieš, nebeží nič.');
+const idleStatus = () => setStatus('Pripravený', 'Nič nemením bez opýtania a všetko sa dá vrátiť. Keď ma zavrieš, nebeží nič.');
 
 /* ---------------------------------------------------------- navigation */
 const views = {};
@@ -758,25 +758,54 @@ function renderProcs() {
   $('#plist').innerHTML = groups.map((g) => {
     const open = pr.open.has(g.key);
     const n = g.procs.length;
-    const procs = g.procs.slice(0, 40).map((p) => `<div class="proc"><div><div>${esc(p.exe)} <span style="color:var(--faint)">· ${p.pid}</span></div>${p.path ? `<div class="path">${esc(p.path)}</div>` : ''}</div>
+    const killable = g.verdict !== 'system' && g.key !== 'WhatsInside';
+    const procs = g.procs.slice(0, 40).map((p) => `<div class="proc"><div><div>${esc(p.exe)} <span style="color:var(--faint)">· ${p.pid}</span>${killable ? `<button class="btn small ghost kill" data-pid="${p.pid}" data-exe="${esc(p.exe)}">Ukončiť</button>` : ''}</div>${p.path ? `<div class="path">${esc(p.path)}</div>` : ''}${p.services?.length ? `<div class="svcs">Služby: ${p.services.map(esc).join(', ')}</div>` : ''}</div>
       <span class="r">${p.cpu >= 0.1 ? `${sk(p.cpu, 1)} %` : '–'}</span><span class="r">${p.ram ? bytes(p.ram) : '?'}</span><span class="r">${rate(p.io_bps)}</span></div>`).join('');
+    const auto = autoOf(g);
     return `<div class="pgroup ${open ? 'open' : ''}" data-key="${esc(g.key)}">
-      <div class="prow"><div class="who"><svg class="chev" viewBox="0 0 12 12"><path d="M4.5 2.5L8 6l-3.5 3.5"/></svg><span class="nm">${esc(g.name)}</span>${g.verdict === 'system' ? '' : badge(g.verdict)}${n > 1 ? `<span class="cnt">${n} ${plural(n, 'proces', 'procesy', 'procesov')}</span>` : ''}</div>
+      <div class="prow"><div class="who"><svg class="chev" viewBox="0 0 12 12"><path d="M4.5 2.5L8 6l-3.5 3.5"/></svg><span class="nm">${esc(g.name)}</span>${g.verdict === 'system' ? '' : badge(g.verdict)}${auto ? `<span class="badge auto" data-tip="Spúšťa sa so systémom: ${esc(auto.when)} (${esc(auto.source)})">${ICON.rocket}So systémom</span>` : ''}${n > 1 ? `<span class="cnt">${n} ${plural(n, 'proces', 'procesy', 'procesov')}</span>` : ''}</div>
       <span></span><span class="r ${g.cpu >= 10 ? 'hot' : g.cpu < 0.1 ? 'dim' : ''}">${g.cpu >= 0.1 ? `${sk(g.cpu, 1)} %` : '–'}</span>
       <span class="r">${g.ram ? bytes(g.ram) : '?'}</span><span class="r ${g.io_bps < 1024 ? 'dim' : ''}">${rate(g.io_bps)}</span></div>
-      <div class="pdetail">${g.about ? `<div class="about">${esc(g.about)}</div>` : ''}${procs}${n > 40 ? `<div class="proc">… a ďalších ${n - 40}</div>` : ''}</div></div>`;
+      <div class="pdetail">${g.about ? `<div class="about">${esc(g.about)}</div>` : ''}${killable || auto ? `<div class="gact">${killable ? `<button class="btn small killall">Ukončiť${n > 1 ? ` všetky (${n})` : ''}</button>` : ''}${auto ? '<button class="btn small ghost toauto">Vypnúť zo spúšťania…</button>' : ''}</div>` : ''}${procs}${n > 40 ? `<div class="proc">… a ďalších ${n - 40}</div>` : ''}</div></div>`;
   }).join('') || '<div class="empty">Nič také nebeží.</div>';
   $$('#plist .prow').forEach((r) => (r.onclick = () => {
     const g = r.parentElement, k = g.dataset.key;
     pr.open.has(k) ? pr.open.delete(k) : pr.open.add(k);
     g.classList.toggle('open');
   }));
+  const groupOf = (el) => s.groups.find((g) => g.key === el.closest('.pgroup').dataset.key);
+  $$('#plist .kill').forEach((b) => (b.onclick = (e) => { e.stopPropagation(); killProcs([{ pid: +b.dataset.pid, exe: b.dataset.exe }], b.dataset.exe); }));
+  $$('#plist .killall').forEach((b) => (b.onclick = () => { const g = groupOf(b); killProcs(g.procs.map((p) => ({ pid: p.pid, exe: p.exe })), g.name); }));
+  $$('#plist .toauto').forEach((b) => (b.onclick = () => { const name = groupOf(b).name; su.q = name.toLowerCase(); su.kind = 'all'; $('#startupSearch').value = name; setView('startup'); }));
+  bindTips($('#plist'));
+}
+
+/** The enabled autostart entry a process group comes from, if any. */
+function autoOf(g) {
+  if (!startupItems) return null;
+  const exes = new Set(g.procs.map((p) => p.exe.toLowerCase()));
+  return startupItems.find((i) => i.enabled && i.verdict !== 'system' && ((i.exe && exes.has(i.exe)) || (i.app && i.app === g.name))) || null;
+}
+
+function killProcs(list, name) {
+  const m = modal(`<h3>Ukončiť ${esc(name)}?</h3>
+    <p class="mp">Neuložená práca v ${list.length > 1 ? 'týchto procesoch' : 'tomto procese'} sa stratí. Ak sa appka spúšťa so systémom, po reštarte sa znova zapne.</p>
+    <div class="mact"><button class="btn" data-close>Zrušiť</button><button class="btn danger" id="killGo">Ukončiť</button></div>`);
+  $('#killGo', m).onclick = async () => {
+    closeModal();
+    const res = await invoke('actions_apply', { actions: list.map((p) => ({ op: 'kill', pid: p.pid, exe: p.exe })) }).catch((e) => list.map(() => ({ ok: false, error: String(e) })));
+    const ok = res.filter((r) => r.ok).length, bad = res.find((r) => !r.ok);
+    if (ok) toast(`Ukončené: ${ok}`);
+    if (bad) toast(bad.error || 'Nepodarilo sa.', 'err');
+    pollProcs();
+  };
 }
 
 views.procs = {
   enter(filter) {
     if (filter) pr.filter = filter;
     placeSeg('#psort');
+    if (!startupItems) invoke('autostart_list').then((x) => { startupItems = x; renderProcs(); }).catch(() => {});
     pollProcs().then(() => { clearTimeout(pr.timer); pr.timer = setTimeout(pollProcs, 600); });
   },
   leave() { clearTimeout(pr.timer); },
@@ -785,35 +814,179 @@ views.procs = {
 
 /* ========================================================== STARTUP */
 const SECTIONS = [
-  ['rgb', 'Výrobcovské RGB appky'],
-  ['optional', 'Dá sa vypnúť'],
-  ['peripheral', 'Periférie'],
-  ['unknown', 'Ostatné'],
-  ['needed', 'Potrebné'],
-  ['system', 'Windows'],
+  ['rgb', 'Výrobcovské RGB appky', 'Ak ich vypneš, svetlá sa môžu po reštarte vrátiť na predvolené farby. Doska si väčšinou pamätá posledný efekt, grafika a vetráky nie vždy.'],
+  ['optional', 'Netreba spúšťať so systémom', 'Keď ich budeš potrebovať, jednoducho ich otvoríš.'],
+  ['peripheral', 'Periférie', 'Ak má myš alebo klávesnica profil uložený v sebe, appka nemusí bežať stále.'],
+  ['unknown', 'Ostatné', 'Tieto nepoznám. Pozri si cestu k programu, väčšinou prezradí, čo to je.'],
+  ['needed', 'Potrebné', null],
+  ['system', 'Súčasti Windowsu', null],
 ];
+const KINDS = [
+  ['all', 'Všetko', () => true],
+  ['apps', 'Appky', (i) => i.kind === 'run' || i.kind === 'folder'],
+  ['task', 'Naplánované úlohy', (i) => i.kind === 'task'],
+  ['service', 'Služby', (i) => i.kind === 'service'],
+  ['other', 'Iné', (i) => i.kind === 'runonce' || i.kind === 'winlogon'],
+];
+const su = { kind: 'all', showSystem: false, q: '', busy: new Set() };
 let startupItems = null;
+let changesLog = [];
+
 async function loadStartup() {
-  $('#startupBody').innerHTML = '<div class="empty">Načítavam…</div>';
-  startupItems = await invoke('autostart_list');
+  if (!startupItems) $('#startupBody').innerHTML = '<div class="card empty">Prechádzam register, naplánované úlohy a služby…</div>';
+  [startupItems, changesLog] = await Promise.all([invoke('autostart_list'), invoke('changes_list').catch(() => [])]);
   renderStartup();
 }
+
+/** What we suggest to switch off: optional things, not Windows "maybe" ones. */
+const recommended = (i) => i.enabled && i.toggle && i.verdict === 'optional' && (!i.advice || i.advice === 'off');
+
+const SHIELD = '<svg class="shield" viewBox="0 0 16 16"><path d="M8 1.6l5 2v4c0 3.2-2.1 5.7-5 6.8-2.9-1.1-5-3.6-5-6.8v-4z"/></svg>';
+const EYE_OFF = '<svg viewBox="0 0 16 16"><path d="M2 2l12 12M6.6 6.7a2 2 0 0 0 2.7 2.7M4.3 4.5C2.9 5.4 1.9 6.7 1.5 8c1 2.9 3.6 4.8 6.5 4.8 1.2 0 2.4-.3 3.4-.9M7 3.3c.3 0 .7-.1 1-.1 2.9 0 5.5 1.9 6.5 4.8-.3.9-.8 1.7-1.4 2.4"/></svg>';
+
+function startupRow(i) {
+  const busy = su.busy.has(i.id);
+  const adv = i.advice === 'maybe' ? '<span class="badge maybe">Záleží, čo používaš</span>' : i.advice === 'keep' ? '<span class="badge needed">Nechaj</span>' : '';
+  return `<div class="arow srow ${i.enabled ? '' : 'isoff'}" data-id="${esc(i.id)}">
+    <div style="min-width:0">
+      <div class="t">${esc(i.app || i.name)}${i.app && i.app !== i.name ? `<span class="sub">${esc(i.name)}</span>` : ''}
+        ${i.hidden ? `<span class="badge ghost" data-tip="Správca úloh túto položku v zozname Aplikácie pri spustení neukazuje.">${EYE_OFF}Skryté</span>` : ''}
+        ${i.running === true ? '<span class="badge on">Beží</span>' : ''}${adv}
+        ${recommended(i) ? '<span class="badge optional">Odporúčam vypnúť</span>' : ''}</div>
+      ${i.about ? `<div class="a">${esc(i.about)}</div>` : ''}
+      <div class="meta"><span>${esc(i.when)}</span><span>·</span><span>${esc(i.source)}</span></div>
+      <div class="c" title="${esc(i.command)}">${esc(i.command)}</div>
+    </div>
+    <div class="sw">
+      ${i.toggle ? `${i.needs_admin ? `<span data-tip="Zmena si vypýta povolenie správcu (UAC).">${SHIELD}</span>` : ''}
+        <label class="switch ${busy ? 'busy' : ''}"><input type="checkbox" ${i.enabled ? 'checked' : ''} ${busy ? 'disabled' : ''}><i></i></label>`
+        : '<span class="na" data-tip="Toto sa nedá vypnúť prepínačom.">–</span>'}
+    </div></div>`;
+}
+
 function renderStartup() {
   const items = startupItems || [];
-  const actionable = items.filter((i) => i.enabled && (i.verdict === 'rgb' || i.verdict === 'optional')).length;
-  $('#startupCount').textContent = actionable || '';
-  $('#startupBody').innerHTML = SECTIONS.map(([v, title]) => {
-    const list = items.filter((i) => i.verdict === v);
-    if (!list.length) return '';
-    return `<h2>${title}</h2><div class="card list">${list.map((i) => `<div class="arow">
-      <div style="min-width:0"><div class="t">${esc(i.app || i.name)}${i.app && i.app !== i.name ? `<span style="font-weight:400;color:var(--faint)">${esc(i.name)}</span>` : ''}
-        ${i.enabled ? '' : '<span class="badge off">Vypnuté</span>'}${i.running === true ? '<span class="badge on">Beží</span>' : ''}</div>
-        ${i.about ? `<div class="a">${esc(i.about)}</div>` : ''}<div class="c">${esc(i.command)}</div></div>
-      <div class="src">${esc(i.source)}</div></div>`).join('')}</div>`;
-  }).join('') || '<div class="card empty">Nič sa nespúšťa automaticky.</div>';
+  const rec = items.filter(recommended);
+  $('#startupCount').textContent = rec.length || '';
+  const on = items.filter((i) => i.enabled);
+  const hidden = on.filter((i) => i.hidden && i.verdict !== 'system');
+  const pending = changesLog.filter((c) => !c.undone).length;
+  $('#changesBtn').innerHTML = `${ICON.clock}Zmeny${pending ? `<span class="pill">${pending}</span>` : ''}`;
+
+  const kf = (KINDS.find((k) => k[0] === su.kind) || KINDS[0])[2];
+  const q = su.q;
+  const shown = items.filter(kf).filter((i) => !q || `${i.app || ''} ${i.name} ${i.command} ${i.source}`.toLowerCase().includes(q));
+  const sysCount = shown.filter((i) => i.verdict === 'system').length;
+
+  $('#startupBody').innerHTML = `
+    <div class="stats">
+      <div class="card stat"><div class="k">Spúšťa sa so systémom</div><div class="v num">${sk(on.length)}</div></div>
+      <div class="card stat"><div class="k">Nevidno v Správcovi úloh</div><div class="v num">${sk(hidden.length)}<small>bez Windowsu</small></div></div>
+      <div class="card stat"><div class="k">Odporúčam vypnúť</div><div class="v num">${sk(rec.length)}</div></div>
+      <div class="card stat"><div class="k">Vypnuté</div><div class="v num">${sk(items.length - on.length)}</div></div>
+    </div>
+    ${rec.length ? `<div class="card recbar"><div>${ICON.rocket}<div><b>${rec.length} ${plural(rec.length, 'vec sa spúšťa', 'veci sa spúšťajú', 'vecí sa spúšťa')} zbytočne.</b><span>Pozrieš si zoznam, vyberieš a vypneš naraz. Všetko sa dá vrátiť.</span></div></div>
+      <button class="btn primary" id="recBtn">Vybrať a vypnúť</button></div>` : ''}
+    <div class="chips">${KINDS.map(([k, l, f]) => { const n = items.filter(f).filter((i) => su.showSystem || i.verdict !== 'system').length; return k !== 'all' && !n ? '' : `<button class="chip ${su.kind === k ? 'on' : ''}" data-k="${k}">${l}<span class="n">${n}</span></button>`; }).join('')}
+      <label class="swl"><span>Ukázať súčasti Windowsu (${sk(sysCount)})</span><label class="switch"><input type="checkbox" id="showSys" ${su.showSystem ? 'checked' : ''}><i></i></label></label></div>
+    ${SECTIONS.map(([v, title, hint]) => {
+      if (v === 'system' && !su.showSystem) return '';
+      const list = shown.filter((i) => i.verdict === v);
+      if (!list.length) return '';
+      return `<h2>${title}<span class="hcount">${list.length}</span></h2>${hint ? `<div class="hint">${hint}</div>` : ''}<div class="card list">${list.map(startupRow).join('')}</div>`;
+    }).join('') || '<div class="card empty">Nič také sa nespúšťa.</div>'}`;
+
+  $$('#startupBody .chip').forEach((c) => (c.onclick = () => { su.kind = c.dataset.k; renderStartup(); }));
+  $('#showSys').onchange = (e) => { su.showSystem = e.target.checked; renderStartup(); };
+  if ($('#recBtn')) $('#recBtn').onclick = openRecommend;
+  $$('#startupBody .srow').forEach((row) => {
+    const cb = $('input[type=checkbox]', row);
+    if (cb) cb.onchange = () => toggleItems([items.find((i) => i.id === row.dataset.id)], cb.checked);
+  });
+  bindTips($('#startupBody'));
 }
+
+/** Switches items on/off. One UAC prompt for everything that needs admin. */
+async function toggleItems(list, enable) {
+  list = list.filter((i) => i && i.toggle);
+  if (!list.length) return;
+  list.forEach((i) => su.busy.add(i.id));
+  renderStartup();
+  let res = [];
+  try {
+    res = await invoke('actions_apply', { actions: list.map((i) => ({ op: 'startup', id: i.id, name: i.app || i.name, toggle: i.toggle, enable })) });
+  } catch (e) { res = list.map(() => ({ ok: false, error: String(e) })); }
+  list.forEach((i) => su.busy.delete(i.id));
+  const ok = res.filter((r) => r.ok).length, bad = res.filter((r) => !r.ok);
+  if (ok) toast(enable ? `Zapnuté: ${ok}` : `Vypnuté: ${ok}. Prejaví sa pri ďalšom štarte.`);
+  if (bad.length) toast(bad[0].error || 'Nepodarilo sa.', 'err');
+  await loadStartup();
+  helperDirty = true;
+}
+
+function openRecommend() {
+  const rec = (startupItems || []).filter(recommended);
+  const m = modal(`<h3>Vypnúť zo spúšťania</h3>
+    <p class="mp">Nič sa nemaže. Položky sa len prestanú spúšťať so systémom a v Zmenách ich jedným klikom vrátiš.</p>
+    <div class="mlist">${rec.map((i, k) => `<label class="mrow"><input type="checkbox" data-k="${k}" ${i.verdict === 'rgb' ? '' : 'checked'}>
+      <div><b>${esc(i.app || i.name)}</b>${i.hidden ? ' <span class="badge ghost">Skryté</span>' : ''}<span>${esc(i.when)} · ${esc(i.source)}</span></div>${i.needs_admin ? SHIELD : ''}</label>`).join('')}</div>
+    ${rec.some((i) => i.needs_admin) ? `<p class="mnote">${SHIELD}Pri službách a položkách pre všetkých používateľov sa raz objaví okno UAC.</p>` : ''}
+    <div class="mact"><button class="btn" data-close>Zrušiť</button><button class="btn primary" id="recGo">Vypnúť vybrané</button></div>`);
+  const count = () => { const n = $$('input:checked', m).length; $('#recGo', m).textContent = n ? `Vypnúť vybrané (${n})` : 'Vypnúť vybrané'; $('#recGo', m).disabled = !n; };
+  $$('input', m).forEach((c) => (c.onchange = count));
+  count();
+  $('#recGo', m).onclick = () => {
+    const pick = $$('input:checked', m).map((c) => rec[+c.dataset.k]);
+    closeModal();
+    toggleItems(pick, false);
+  };
+}
+
+function when(at) {
+  const d = new Date(at * 1000);
+  return d.toLocaleString('sk-SK', { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+function openChanges() {
+  const list = changesLog.map((c, i) => [c, i]).reverse();
+  const m = modal(`<h3>Zmeny</h3>
+    <p class="mp">Všetko, čo WhatsInside zmenil. Zmena sa dá vrátiť, kým ju nevrátiš alebo neprepneš znova.</p>
+    <div class="mlist">${list.length ? list.map(([c, i]) => `<div class="mrow ch ${c.undone ? 'done' : ''}">
+      <span class="dot ${c.enabled ? 'mint' : 'amber'}"></span><div><b>${esc(c.name)}</b><span>${c.enabled ? 'Zapnuté' : 'Vypnuté'} · ${when(c.at)}${c.undone ? ' · vrátené' : ''}</span></div>
+      ${c.undone ? '' : `<button class="btn small" data-undo="${i}">Vrátiť</button>`}</div>`).join('') : '<div class="empty">Zatiaľ nič.</div>'}</div>
+    <div class="mact"><button class="btn" data-close>Zavrieť</button></div>`);
+  $$('[data-undo]', m).forEach((b) => (b.onclick = async () => {
+    b.disabled = true;
+    try { await invoke('changes_undo', { index: +b.dataset.undo }); toast('Vrátené'); }
+    catch (e) { toast(String(e), 'err'); }
+    closeModal();
+    await loadStartup();
+    openChanges();
+  }));
+}
+
 $('#startupRefresh').onclick = loadStartup;
-views.startup = { enter() { if (!startupItems) loadStartup(); } };
+$('#changesBtn').onclick = openChanges;
+$('#startupSearch').addEventListener('input', debounce((e) => { su.q = e.target.value.trim().toLowerCase(); renderStartup(); }, 120));
+views.startup = { enter() { loadStartup(); } };
+
+/* ---------------------------------------------------------- modal + tips */
+function modal(html) {
+  closeModal();
+  const back = document.createElement('div');
+  back.className = 'modal-back';
+  back.innerHTML = `<div class="modal" role="dialog">${html}</div>`;
+  document.body.appendChild(back);
+  back.onclick = (e) => { if (e.target === back || e.target.closest('[data-close]')) closeModal(); };
+  return $('.modal', back);
+}
+function closeModal() { $$('.modal-back').forEach((b) => b.remove()); }
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal(); });
+function bindTips(root) {
+  $$('[data-tip]', root).forEach((el) => {
+    el.onmousemove = (e) => showTip(esc(el.dataset.tip), e.clientX, e.clientY);
+    el.onmouseleave = hideTip;
+  });
+}
 
 /* ========================================================== HELPER */
 let helperDirty = true, helperBusy = false;
@@ -907,13 +1080,12 @@ function buildAdvice({ facts, quick, snap, auto, drives, specs }) {
   }
 
   // 7. Autostart
-  const extra = auto.filter((i) => i.enabled && i.verdict === 'optional');
+  const extra = auto.filter(recommended);
   if (extra.length) {
-    tips.push({ level: extra.length > 4 ? 'mid' : 'low', icon: 'rocket', title: `${extra.length} ${plural(extra.length, 'appka sa spúšťa', 'appky sa spúšťajú', 'appiek sa spúšťa')} s Windowsom zbytočne`,
-      text: 'Spomaľujú štart a potom bežia na pozadí. Keď ich budeš potrebovať, jednoducho ich otvoríš.',
-      list: extra.slice(0, 6).map((i) => [i.app || i.name, i.source]),
-      steps: ['Ctrl + Shift + Esc → Aplikácie pri spustení → vyber appku → Vypnúť.', 'Discord, Steam či Spotify majú túto voľbu aj vo vlastných nastaveniach.'],
-      action: { label: 'Ukázať všetko', run: () => setView('startup') } });
+    tips.push({ level: extra.length > 4 ? 'mid' : 'low', icon: 'rocket', title: `${extra.length} ${plural(extra.length, 'vec sa spúšťa', 'veci sa spúšťajú', 'vecí sa spúšťa')} s Windowsom zbytočne`,
+      text: `Spomaľujú štart a potom bežia na pozadí.${extra.some((i) => i.hidden) ? ` ${extra.filter((i) => i.hidden).length} z nich v Správcovi úloh ani neuvidíš (naplánované úlohy a služby).` : ''} Vypneš ich tu jedným klikom a v Zmenách ich kedykoľvek vrátiš.`,
+      list: extra.slice(0, 6).map((i) => [i.app || i.name, i.when]),
+      action: { label: 'Vybrať a vypnúť', run: () => { setView('startup'); setTimeout(() => startupItems && openRecommend(), 400); } } });
   } else ok.push('Po spustení sa nespúšťa nič zbytočné');
 
   // 8. Heavy optional apps running right now
@@ -1390,7 +1562,41 @@ views.hw = {
   },
 };
 
+/* ========================================================== UPDATES */
+let updateInfo = null;
+async function checkUpdate(manual = false) {
+  try { updateInfo = await invoke('update_check'); } catch (e) { updateInfo = null; }
+  const u = updateInfo;
+  $('#appVer').textContent = u ? `v${u.current}` : '';
+  const b = $('#updateBtn');
+  if (u && u.newer && u.latest) {
+    b.innerHTML = `<span class="dot amber"></span><div><b>Nová verzia ${esc(u.latest.version)}</b><span>Klikni a aktualizuj</span></div>`;
+    b.hidden = false;
+  } else {
+    b.hidden = true;
+    if (manual) toast(u?.error ? u.error : 'Máš najnovšiu verziu.', u?.error ? 'err' : 'ok');
+  }
+}
+$('#updateBtn').onclick = () => {
+  const u = updateInfo;
+  if (!u?.latest) return;
+  const m = modal(`<h3>WhatsInside ${esc(u.latest.version)}</h3>
+    <p class="mp">Teraz máš ${esc(u.current)}. Stiahnem inštalátor z GitHubu, overím jeho kontrolný súčet a nainštalujem ho. Appka sa na chvíľu zavrie a sama sa znova otvorí.</p>
+    ${u.latest.notes ? `<div class="notes">${esc(u.latest.notes).replace(/^### (.*)$/gm, '<b>$1</b>').replace(/^- (.*)$/gm, '• $1').replace(/\n/g, '<br>')}</div>` : ''}
+    ${u.installed ? '' : '<p class="mnote">Spúšťaš prenosnú verziu, preto sa otvorí bežný inštalátor. Po inštalácii spúšťaj WhatsInside zo Štartu.</p>'}
+    <div class="mact"><a class="btn ghost" href="https://github.com/Skyramp420/WhatsInside/releases" target="_blank" rel="noreferrer">Všetky verzie</a><button class="btn" data-close>Neskôr</button><button class="btn primary" id="updGo">Aktualizovať</button></div>`);
+  $('#updGo', m).onclick = async () => {
+    const b = $('#updGo', m);
+    b.disabled = true;
+    b.textContent = 'Sťahujem…';
+    try { await invoke('update_install', { latest: u.latest }); }
+    catch (e) { toast(String(e), 'err'); b.disabled = false; b.textContent = 'Skúsiť znova'; }
+  };
+};
+$('#appVer').onclick = () => checkUpdate(true);
+
 /* ---------------------------------------------------------- start */
 idleStatus();
 setView('helper');
 setIdle();
+setTimeout(checkUpdate, 2500);

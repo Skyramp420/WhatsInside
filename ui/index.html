@@ -35,12 +35,14 @@
     <button data-view="hw"><svg viewBox="0 0 16 16"><rect x="4" y="4" width="8" height="8" rx="1.6"/><path d="M6.5 1.5V4M9.5 1.5V4M6.5 12v2.5M9.5 12v2.5M1.5 6.5H4M1.5 9.5H4M12 6.5h2.5M12 9.5h2.5"/></svg>Hardvér</button>
   </nav>
   <div class="spacer"></div>
+  <button class="update" id="updateBtn" hidden></button>
   <div class="status" id="status">
-    <div class="row"><span class="dot mint"></span><span id="statusTitle">Len sa pozerám</span></div>
-    <p id="statusText">Nič nemením ani nemažem. Keď ma zavrieš, nebeží nič.</p>
+    <div class="row"><span class="dot mint"></span><span id="statusTitle">Pripravený</span></div>
+    <p id="statusText">Nič nemením bez opýtania a všetko sa dá vrátiť. Keď ma zavrieš, nebeží nič.</p>
     <div class="bar" id="statusBar" hidden><i></i></div>
   </div>
   <button class="themebtn" id="theme"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="3"/><path d="M8 1.5v1.3M8 13.2v1.3M1.5 8h1.3M13.2 8h1.3M3.4 3.4l.9.9M11.7 11.7l.9.9M3.4 12.6l.9-.9M11.7 4.3l.9-.9"/></svg><span id="themeLabel">Téma</span></button>
+  <button class="ver" id="appVer" title="Skontrolovať aktualizácie"></button>
 </aside>
 
 <main id="main">
@@ -82,17 +84,19 @@
       <div class="phead"><span>Appka</span><span></span><span>CPU</span><span>RAM</span><span>Disk</span></div>
       <div id="plist"></div>
     </div>
-    <div class="note">Nič tu nevypínam. Pri známych appkách vysvetlím, čo robia a či ich potrebuješ.</div>
+    <div class="note">Rozbaľ appku a uvidíš jej procesy, služby, ktoré v nich bežia, a či sa spúšťa so systémom. Súčasti Windowsu ukončiť nedovolím.</div>
   </section>
 
   <!-- Startup -->
   <section class="view" id="v-startup">
     <div class="head">
-      <div><h1>Po spustení</h1><div class="sub">Čo sa spúšťa spolu s Windowsom</div></div>
-      <div class="actions"><button class="btn" id="startupRefresh"><svg viewBox="0 0 16 16"><path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9M13.5 2.5v3h-3"/></svg>Obnoviť</button></div>
+      <div><h1>Po spustení</h1><div class="sub">Všetko, čo sa spúšťa s Windowsom, aj to, čo Správca úloh neukáže</div></div>
+      <div class="actions">
+        <label class="search"><svg viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.6"/><path d="M10.5 10.5l3.5 3.5"/></svg><input id="startupSearch" placeholder="Hľadať" spellcheck="false"></label>
+        <button class="btn" id="changesBtn">Zmeny</button>
+        <button class="btn" id="startupRefresh"><svg viewBox="0 0 16 16"><path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9M13.5 2.5v3h-3"/></svg>Obnoviť</button>
+      </div>
     </div>
-    <div class="card info"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.2"/><path d="M8 7.3v3.6M8 5h.01"/></svg>
-      <p><b>Zatiaľ len ukazujem.</b> Vypínanie z automatického spúšťania pridám v ďalšej verzii. Výrobcovské appky ako MSI Center sa často spúšťajú ako služby, preto ich vidíš aj tu.</p></div>
     <div id="startupBody"></div>
   </section>
 

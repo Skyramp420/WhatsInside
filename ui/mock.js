@@ -53,6 +53,25 @@
   };
   const pathOf = (id) => { const p = []; let c = id; while (nodes[c].parent != null) { p.unshift(nodes[c].name); c = nodes[c].parent; } return 'C:' + (p.length ? '\\' + p.join('\\') : '\\'); };
 
+
+  const A = (o) => ({ exe: null, app: null, about: null, advice: null, running: null, hidden: false, needs_admin: false, enabled: true, toggle: { t: 'approved', hive: 'HKCU', key: 'x', name: o.name }, ...o });
+  const mockChanges = [];
+  const mockAuto = [
+    A({ id: 'service:msi_central_service', kind: 'service', when: 'Po štarte Windowsu (oneskorene)', source: 'Služba MSI_Central_Service', name: 'MSI Central Service', command: 'C:\\Program Files (x86)\\MSI\\MSI Center\\MSI.CentralServer.exe', exe: 'msi.centralserver.exe', app: 'MSI Center / Mystic Light', verdict: 'rgb', about: 'Ovláda svetlá dosky a všetkého, čo je na nej zapojené (vetráky, AIO). Beží stále, aj keď ju práve nepoužívaš.', running: true, hidden: true, needs_admin: true, toggle: { t: 'service', name: 'MSI_Central_Service', on: 'delayed-auto' } }),
+    A({ id: 'task:\\msi\\ledkeeper', kind: 'task', when: 'Pri prihlásení', source: 'Naplánovaná úloha \\MSI\\MSI Task Host - LEDKeeper', name: 'MSI Task Host - LEDKeeper', command: '"C:\\Program Files (x86)\\MSI\\MSI Center\\Mystic Light\\LEDKeeper2.exe"', exe: 'ledkeeper2.exe', app: 'MSI Center / Mystic Light', verdict: 'rgb', about: 'Ovláda svetlá dosky a všetkého, čo je na nej zapojené (vetráky, AIO).', hidden: true, needs_admin: true, toggle: { t: 'task', path: '\\MSI\\LEDKeeper' } }),
+    A({ id: 'service:gvservice', kind: 'service', when: 'Pri štarte Windowsu', source: 'Služba GvService', name: 'GIGABYTE Control Center Service', command: '"C:\\Program Files\\GIGABYTE\\Control Center\\Lib\\GBT_VGA\\Service\\GvService.exe"', app: 'GIGABYTE Control Center', verdict: 'rgb', about: 'Ovláda svetlá a displej grafiky.', running: true, hidden: true, needs_admin: true, toggle: { t: 'service', name: 'GvService', on: 'auto' } }),
+    A({ id: 'run:discord', kind: 'run', when: 'Pri prihlásení', source: 'Run (používateľ)', name: 'Discord', command: 'C:\\Users\\Alex\\AppData\\Local\\Discord\\Update.exe --processStart Discord.exe', exe: 'update.exe', app: 'Discord', verdict: 'optional', about: 'Spúšťa sa s Windowsom. Dá sa vypnúť v Discorde → Nastavenia → Nastavenia systému Windows.' }),
+    A({ id: 'run:steam', kind: 'run', when: 'Pri prihlásení', source: 'Run (používateľ)', name: 'Steam', command: '"C:\\Program Files\\Steam\\steam.exe" -silent', exe: 'steam.exe', app: 'Steam', verdict: 'optional', about: 'Nemusí bežať, kým nehráš.', enabled: false }),
+    A({ id: 'task:\\googleupdatertaskuser', kind: 'task', when: 'Pri prihlásení', source: 'Naplánovaná úloha \\GoogleUpdaterTaskUser{4F1C}', name: 'GoogleUpdaterTaskUser{4F1C}', command: 'C:\\Users\\Alex\\AppData\\Local\\Google\\GoogleUpdater\\updater.exe --wake', exe: 'updater.exe', app: 'Google aktualizácie', verdict: 'optional', about: 'Aktualizuje Chrome a iné appky od Googlu. Ak ho vypneš z automatického spúšťania, Chrome sa aktualizuje sám pri spustení.', hidden: true, toggle: { t: 'task', path: '\\GoogleUpdaterTaskUser{4F1C}' } }),
+    A({ id: 'service:edgeupdate', kind: 'service', when: 'Po štarte Windowsu (oneskorene)', source: 'Služba edgeupdate', name: 'Microsoft Edge Update Service (edgeupdate)', command: '"C:\\Program Files (x86)\\Microsoft\\EdgeUpdate\\MicrosoftEdgeUpdate.exe" /svc', app: 'Microsoft Edge aktualizácie', verdict: 'optional', about: 'Aktualizuje Edge a WebView2. Môže štartovať ručne, keď ho Edge potrebuje.', running: false, hidden: true, needs_admin: true, toggle: { t: 'service', name: 'edgeupdate', on: 'delayed-auto' } }),
+    A({ id: 'service:diagtrack', kind: 'service', when: 'Pri štarte Windowsu', source: 'Služba DiagTrack', name: 'Pripojené používateľské prostredie a telemetria', command: 'C:\\WINDOWS\\System32\\svchost.exe -k utcsvc -p', app: 'Telemetria Windowsu', verdict: 'optional', advice: 'off', about: 'Posiela Microsoftu diagnostické údaje. Windows funguje rovnako aj bez nej.', running: true, hidden: true, needs_admin: true, toggle: { t: 'service', name: 'DiagTrack', on: 'auto' } }),
+    A({ id: 'service:spooler', kind: 'service', when: 'Pri štarte Windowsu', source: 'Služba Spooler', name: 'Zaraďovač tlače', command: 'C:\\WINDOWS\\System32\\spoolsv.exe', app: 'Tlač (Print Spooler)', verdict: 'optional', advice: 'maybe', about: 'Potrebná na tlač aj „Tlačiť do PDF“. Ak netlačíš, môže štartovať ručne.', running: true, hidden: true, needs_admin: true, toggle: { t: 'service', name: 'Spooler', on: 'auto' } }),
+    A({ id: 'run:lghub', kind: 'run', when: 'Pri prihlásení', source: 'Run (používateľ)', name: 'LGHUB', command: '"C:\\Program Files\\LGHUB\\system_tray\\lghub_system_tray.exe" --minimized', exe: 'lghub_system_tray.exe', app: 'Logitech G HUB', verdict: 'peripheral', about: 'Nastavenia myši a klávesnice Logitech.' }),
+    A({ id: 'folder:lookatthis', kind: 'folder', when: 'Pri prihlásení', source: 'Priečinok Po spustení (používateľ)', name: 'LookAtThis', command: 'C:\\Users\\Alex\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\LookAtThis.lnk', app: 'LookAtThis', verdict: 'needed', about: 'Z rodiny WheresTheApp. Klipy z hier, beží nenápadne na pozadí.' }),
+    A({ id: 'service:vgc', kind: 'service', when: 'Pri štarte Windowsu', source: 'Služba vgc', name: 'Vanguard', command: '"C:\\Program Files\\Riot Vanguard\\vgc.exe"', app: 'Riot Vanguard', verdict: 'needed', about: 'Anti-cheat pre Valorant a League of Legends.', running: true, hidden: true, needs_admin: true, toggle: { t: 'service', name: 'vgc', on: 'auto' } }),
+    A({ id: 'task:\\vendor\\x', kind: 'task', when: 'Pravidelne na pozadí', source: 'Naplánovaná úloha \\Razer\\Cortex Check', name: 'Cortex Check', command: 'C:\\Program Files\\Razer\\Cortex\\check.exe', verdict: 'unknown', hidden: true, toggle: { t: 'task', path: '\\Razer\\Cortex Check' } }),
+    A({ id: 'service:audiosrv', kind: 'service', when: 'Pri štarte Windowsu', source: 'Služba Audiosrv', name: 'Zvuk systému Windows', command: 'C:\\WINDOWS\\System32\\svchost.exe -k LocalServiceNetworkRestricted -p', verdict: 'system', about: 'Služba Windowsu. Nechaj tak.', running: true, hidden: true, needs_admin: true, toggle: { t: 'service', name: 'Audiosrv', on: 'auto' } }),
+  ];
   const R = (n) => n * MB;
   function procs() {
     snapN++;
@@ -63,7 +82,7 @@
       cpu_count: 24, cpu_total: snapN > 1 ? j(14) : 0, ram_total: 64 * GB, ram_used: 23.4 * GB,
       groups: [
         g('exe:chrome.exe', 'chrome', 'unknown', null, [p(1, 'chrome.exe', 610, 3.1, 120000, 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe'), p(2, 'chrome.exe', 380, 0.4), p(3, 'chrome.exe', 210, 0.2)]),
-        g('windows', 'Windows', 'system', 'Súčasti Windowsu. Nechaj ich tak.', [p(4, 'dwm.exe', 240, 1.2), p(5, 'explorer.exe', 180, 0.3), p(6, 'svchost.exe', null, 0.5)]),
+        g('windows', 'Windows', 'system', 'Súčasti Windowsu. Nechaj ich tak.', [p(4, 'dwm.exe', 240, 1.2), p(5, 'explorer.exe', 180, 0.3), { ...p(6, 'svchost.exe', 48, 0.5), services: ['Windows Update', 'Background Intelligent Transfer Service'] }]),
         g('Logitech G HUB', 'Logitech G HUB', 'peripheral', 'Nastavenia myši a klávesnice Logitech. Ak má myš profil uložený v sebe, G HUB nemusí bežať stále.', [p(7, 'lghub_system_tray.exe', 77), p(8, 'lghub_agent.exe', 75, 0.2)]),
         g('MSI Center / Mystic Light', 'MSI Center / Mystic Light', 'rgb', 'Ovláda svetlá dosky a všetkého, čo je na nej zapojené (vetráky, AIO). Beží stále, aj keď ju práve nepoužívaš.', [p(9, 'LEDKeeper2.exe', 92, 0.6, 0, 'C:\\Program Files (x86)\\MSI\\MSI Center\\Mystic Light\\LEDKeeper2.exe')]),
         g('GIGABYTE Control Center', 'GIGABYTE Control Center', 'rgb', 'Ovláda svetlá a displej grafiky. Má niekoľko pomocných procesov (meranie FPS, PresentMon), ktoré bežia stále.', [p(10, 'GvFvSDKCSharp.exe', 42, 0.3), p(11, 'GCC.exe', 21, 0.1), p(12, 'GvFPS.exe', 13, 0.8), p(13, 'Gv.PresentMon.exe', 9, 0.4)]),
@@ -147,14 +166,17 @@
         };
         case 'save_card': return 'C:\\Users\\Alex\\Pictures\\WhatsInside\\WhatsInside-PC-1760900000.png';
         case 'procs_snapshot': return procs();
-        case 'autostart_list': return [
-          { source: 'Služba', name: 'MSI Central Service', command: 'C:\\Program Files (x86)\\MSI\\MSI Center\\MSI.CentralServer.exe', app: 'MSI Center / Mystic Light', verdict: 'rgb', about: 'Ovláda svetlá dosky a všetkého, čo je na nej zapojené (vetráky, AIO). Beží stále, aj keď ju práve nepoužívaš.', enabled: true, running: true },
-          { source: 'Služba', name: 'GIGABYTE Control Center Service', command: '"C:\\Program Files\\GIGABYTE\\Control Center\\Lib\\GBT_VGA\\Service\\GvService.exe"', app: 'GIGABYTE Control Center', verdict: 'rgb', about: 'Ovláda svetlá a displej grafiky.', enabled: true, running: true },
-          { source: 'Pri prihlásení (používateľ)', name: 'Discord', command: 'C:\\Users\\Alex\\AppData\\Local\\Discord\\Update.exe --processStart Discord.exe', app: 'Discord', verdict: 'optional', about: 'Spúšťa sa s Windowsom. Dá sa vypnúť v Discorde → Nastavenia → Nastavenia systému Windows.', enabled: true, running: null },
-          { source: 'Pri prihlásení (používateľ)', name: 'Steam', command: '"C:\\Program Files\\Steam\\steam.exe" -silent', app: 'Steam', verdict: 'optional', about: 'Nemusí bežať, kým nehráš.', enabled: false, running: null },
-          { source: 'Pri prihlásení (používateľ)', name: 'LGHUB', command: '"C:\\Program Files\\LGHUB\\system_tray\\lghub_system_tray.exe" --minimized', app: 'Logitech G HUB', verdict: 'peripheral', about: 'Nastavenia myši a klávesnice Logitech.', enabled: true, running: null },
-          { source: 'Priečinok Po spustení (používateľ)', name: 'LookAtThis', command: 'C:\\Users\\Alex\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\LookAtThis.lnk', app: null, verdict: 'unknown', about: null, enabled: true, running: null },
-        ];
+        case 'autostart_list': return mockAuto.map((x) => ({ ...x }));
+        case 'changes_list': return mockChanges;
+        case 'changes_undo': { const c = mockChanges[args.index]; c.undone = true; const it = mockAuto.find((x) => x.id === c.id); if (it) it.enabled = !c.enabled; return null; }
+        case 'actions_apply': return args.actions.map((a) => {
+          if (a.op === 'kill') return { ok: true, error: null, elevated: false };
+          const it = mockAuto.find((x) => x.id === a.id); if (it) it.enabled = a.enable;
+          mockChanges.push({ at: Date.now() / 1000, id: a.id, name: a.name, toggle: a.toggle, enabled: a.enable, undone: false });
+          return { ok: true, error: null, elevated: a.toggle.t === 'service' };
+        });
+        case 'update_check': return { current: '0.4.0', newer: true, installed: true, error: null, latest: { version: '0.4.1', url: '', sha256: '', notes: '### Nové\n- Rýchlejší scan\n- Opravy' } };
+        case 'update_install': throw new Error('V náhľade sa aktualizovať nedá.');
         case 'hw_scan': return {
           nvapi: true, errors: [], devices: [
             { kind: 'RGB radič', name: 'MSI MAG Z790 TOMAHAWK WIFI – Mystic Light', id: 'USB 1462:7D91', note: '185-bajtový protokol, per-LED direct mód. Ovláda aj ARGB headery (AIO, vetráky cez hub).', supported: true },

@@ -426,3 +426,62 @@ body.idle .scanning .bar.indet i{animation-play-state:paused}
 .lrow.path .nm .badge{margin:0 8px 0 6px}
 .legend{display:flex;gap:14px;flex-wrap:wrap;margin:-4px 4px 4px;font-size:11.5px;color:var(--muted)}
 .legend span::before{content:"";display:inline-block;width:9px;height:9px;border-radius:3px;background:var(--c);margin-right:6px;vertical-align:-0.5px}
+
+/* v0.4: startup switches, modals, process actions, updates */
+.srow{grid-template-columns:minmax(0,1fr) auto}
+.srow .t .sub{font-weight:400;color:var(--faint)}
+.srow .meta{display:flex;gap:6px;flex-wrap:wrap;font-size:11.5px;color:var(--muted);margin-top:4px}
+.srow .sw{display:flex;align-items:center;gap:8px}
+.srow.isoff .t,.srow.isoff .a{opacity:.55}
+.srow .na{color:var(--faint);font-size:13px;padding:0 12px}
+.shield{width:14px;height:14px;stroke:var(--faint);stroke-width:1.5;fill:none;stroke-linejoin:round;vertical-align:-2px}
+.badge svg{width:11px;height:11px;stroke:currentColor;stroke-width:1.7;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.badge.ghost{background:color-mix(in srgb,var(--blue) 12%,transparent);color:var(--blue)}
+.badge.maybe{background:var(--fill2);color:var(--muted)}
+.badge.auto{background:color-mix(in srgb,var(--accent) 14%,transparent);color:var(--accent)}
+.switch.busy i{opacity:.5}
+.switch.busy i::after{animation:pulse 1s var(--ease) infinite alternate}
+@keyframes pulse{from{opacity:1}to{opacity:.4}}
+h2 .hcount{font-size:12px;font-weight:560;color:var(--faint);margin-left:8px}
+.hint{font-size:12px;color:var(--muted);margin:-6px 2px 10px;max-width:760px}
+.chips .swl{margin-left:auto}
+.recbar{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 16px;margin-top:14px;
+  background:color-mix(in srgb,var(--accent) 9%,var(--panel))}
+.recbar>div{display:flex;gap:12px;align-items:center}
+.recbar>div>svg{width:22px;height:22px;stroke:var(--accent);stroke-width:1.6;fill:none;stroke-linecap:round;flex:none}
+.recbar b{display:block;font-weight:620}
+.recbar span{font-size:12.5px;color:var(--muted)}
+#changesBtn .pill{margin-left:2px;background:var(--accent);color:var(--accent-ink);border-radius:20px;font-size:10.5px;font-weight:700;padding:0 6px;line-height:16px}
+#changesBtn svg{width:15px;height:15px}
+
+.modal-back{position:fixed;inset:0;z-index:70;display:grid;place-items:center;background:rgba(0,0,0,.32);animation:fadein .18s var(--ease)}
+.modal{width:min(560px,calc(100vw - 48px));max-height:calc(100vh - 80px);display:flex;flex-direction:column;gap:12px;background:var(--panel);
+  border-radius:18px;padding:20px 22px;box-shadow:0 30px 80px rgba(0,0,0,.35),0 0 0 .5px var(--line);animation:modalin .35s var(--spring)}
+.modal h3{margin:0;font-size:18px;font-weight:680}
+.modal .mp{margin:0;color:var(--muted);font-size:13px;line-height:1.45}
+.modal .mnote{margin:0;font-size:12px;color:var(--muted);display:flex;gap:6px;align-items:center}
+.modal .mlist{overflow:auto;display:flex;flex-direction:column;gap:2px;margin:0 -8px;padding:0 8px;min-height:0}
+.modal .mrow{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:center;padding:8px;border-radius:10px;cursor:default}
+.modal .mrow:hover{background:var(--hover)}
+.modal .mrow b{font-weight:600}
+.modal .mrow span:not(.badge){display:block;font-size:11.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.modal .mrow input{width:16px;height:16px;accent-color:var(--accent)}
+.modal .mrow.done{opacity:.5}
+.modal .mact{display:flex;justify-content:flex-end;gap:8px;margin-top:4px}
+.modal .mact a.btn{margin-right:auto;text-decoration:none}
+.modal .notes{background:var(--well);border-radius:10px;padding:10px 12px;font-size:12.5px;line-height:1.5;max-height:220px;overflow:auto}
+@keyframes fadein{from{opacity:0}}
+@keyframes modalin{from{opacity:0;transform:translateY(10px) scale(.97)}}
+
+.pdetail .gact{display:flex;gap:6px;margin:0 0 8px}
+.pdetail .proc .kill{margin-left:6px;padding:0 6px;font-size:11px;opacity:0;transition:opacity .12s}
+.pdetail .proc:hover .kill{opacity:1}
+.pdetail .proc .svcs{font-size:11px;color:var(--muted);margin-top:2px}
+
+.update{display:flex;gap:9px;align-items:center;text-align:left;border:0;margin-bottom:8px;padding:10px 12px;border-radius:12px;
+  background:color-mix(in srgb,var(--accent) 14%,var(--panel));color:var(--text);font:inherit;font-size:12px;animation:modalin .5s var(--spring)}
+.update:hover{background:color-mix(in srgb,var(--accent) 22%,var(--panel))}
+.update b{display:block;font-weight:620}
+.update span:not(.dot){color:var(--muted);font-size:11.5px}
+.ver{border:0;background:transparent;color:var(--faint);font:500 11px var(--tc);padding:2px 8px;text-align:left;border-radius:6px}
+.ver:hover{color:var(--accent)}

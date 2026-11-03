@@ -22,7 +22,7 @@
   --text:#f5f5f7;--muted:#a1a1a6;--faint:#6e6e73;
   --fill:rgba(118,118,128,.24);--fill2:rgba(118,118,128,.16);--well:rgba(118,118,128,.14);
   --hover:rgba(255,255,255,.06);--sel:rgba(255,255,255,.1);
-  --rec:#ff453a;--amber:#ffb340;--mint:#30d158;--blue:#0a84ff;--lilac:#bf5af2;
+  --rec:#ff453a;--amber:#ffb340;--mint:#30d158;--blue:#0a84ff;--lilac:#bf5af2;--teal:#40c8e0;
   --shadow:rgba(0,0,0,.5);--scrim:rgba(0,0,0,.45);--material:rgba(44,44,46,.78);
   --card-shadow:0 0 0 .5px rgba(255,255,255,.07),0 1px 2px rgba(0,0,0,.35);
   --card-shadow-hover:0 0 0 .5px rgba(255,255,255,.1),0 6px 18px rgba(0,0,0,.45);
@@ -35,7 +35,7 @@
   --text:#1d1d1f;--muted:#6e6e73;--faint:#a1a1a6;
   --fill:rgba(118,118,128,.12);--fill2:rgba(118,118,128,.08);--well:rgba(118,118,128,.08);
   --hover:rgba(0,0,0,.04);--sel:rgba(0,0,0,.075);
-  --rec:#ff3b30;--amber:#c76a00;--mint:#248a3d;--blue:#007aff;--lilac:#af52de;
+  --rec:#ff3b30;--amber:#c76a00;--mint:#248a3d;--blue:#007aff;--lilac:#af52de;--teal:#0e9fb8;
   --shadow:rgba(0,0,0,.16);--scrim:rgba(0,0,0,.25);--material:rgba(250,250,252,.82);
   --card-shadow:0 0 0 .5px rgba(0,0,0,.07),0 1px 3px rgba(0,0,0,.07);
   --card-shadow-hover:0 0 0 .5px rgba(0,0,0,.08),0 8px 22px rgba(0,0,0,.1);
@@ -192,9 +192,11 @@ body.idle .scanning .bar.indet i{animation-play-state:paused}
 .crumbs .spacer{flex:1}
 
 .treemap{position:relative;height:380px;padding:8px;overflow:hidden}
-.tm{position:absolute;border-radius:7px;overflow:hidden;cursor:default;
-  background:color-mix(in srgb,var(--c) var(--tm-mix),var(--panel));box-shadow:inset 0 0 0 .5px color-mix(in srgb,var(--c) 45%,transparent);
-  transition:filter .12s var(--ease),box-shadow .12s}
+.tm{position:absolute;border-radius:10px;overflow:hidden;cursor:default;
+  background:linear-gradient(155deg,color-mix(in srgb,var(--c) calc(var(--tm-mix) + 8%),var(--panel)),color-mix(in srgb,var(--c) calc(var(--tm-mix) - 8%),var(--panel)));
+  box-shadow:inset 0 0 0 .5px color-mix(in srgb,var(--c) 45%,transparent);
+  transition:filter .12s var(--ease),box-shadow .12s,transform .2s var(--spring)}
+.tm.open{cursor:pointer}
 .tm:hover{filter:brightness(1.08);box-shadow:inset 0 0 0 1.5px color-mix(in srgb,var(--c) 70%,transparent)}
 .tm .lbl{position:absolute;left:8px;top:6px;right:6px;font:600 12px/1.25 var(--body);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none}
 .tm .lbl small{display:block;font:500 11px var(--tc);color:var(--muted)}
@@ -485,3 +487,66 @@ h2 .hcount{font-size:12px;font-weight:560;color:var(--faint);margin-left:8px}
 .update span:not(.dot){color:var(--muted);font-size:11.5px}
 .ver{border:0;background:transparent;color:var(--faint);font:500 11px var(--tc);padding:2px 8px;text-align:left;border-radius:6px}
 .ver:hover{color:var(--accent)}
+
+/* v0.5: performance, history */
+.h2row{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.h2row h2{margin-bottom:10px}
+h3.cat{font-size:12px;font-weight:620;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin:18px 4px 8px}
+.placebo{margin-top:22px;padding:0}
+.placebo summary{list-style:none;display:flex;gap:12px;align-items:center;padding:14px 16px;cursor:default}
+.placebo summary::-webkit-details-marker{display:none}
+.placebo summary svg{width:18px;height:18px;stroke:var(--amber);stroke-width:1.6;fill:none;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.placebo summary b{display:block;font-weight:620}
+.placebo summary small{font-size:12px;color:var(--muted)}
+.placebo summary::after{content:'›';margin-left:auto;color:var(--faint);font-size:18px;transition:transform .3s var(--spring)}
+.placebo[open] summary::after{transform:rotate(90deg)}
+.placebo .plist{display:flex;flex-direction:column;gap:2px;padding:0 16px 14px 46px}
+.placebo .plist div{display:grid;grid-template-columns:minmax(180px,.8fr) 1.2fr;gap:14px;padding:7px 0;border-top:.5px solid var(--line);font-size:12.5px}
+.placebo .plist span{color:var(--muted)}
+.hrow{grid-template-columns:10px minmax(0,1fr) 54px 80px}
+.hrow .time{font-size:12px;color:var(--muted);text-align:right}
+.hrow .btn{justify-self:end}
+.hrow.isoff .t{opacity:.55}
+
+/* v0.5 treemap tiles */
+.tm .tc{position:absolute;inset:0;padding:9px 10px;display:flex;flex-direction:column;align-items:flex-start;gap:1px;min-width:0;pointer-events:none}
+.tm .tc>*{max-width:100%}
+.tm .chip{width:26px;height:26px;flex:none;border-radius:8px;display:grid;place-items:center;margin-bottom:7px;
+  background:color-mix(in srgb,var(--c) 34%,transparent);box-shadow:inset 0 0 0 .5px color-mix(in srgb,var(--c) 50%,transparent)}
+.tm .chip svg{width:15px;height:15px;stroke:color-mix(in srgb,var(--c) 55%,var(--text));stroke-width:1.6;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.tm .nm{font:620 12.5px/1.25 var(--body);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tm .sz{font:600 12px var(--tc);color:var(--muted);white-space:nowrap}
+.tm .sz em{font-style:normal;font-weight:500;opacity:.75;margin-left:4px}
+.tm .via{font:500 11px var(--body);color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tm.t-xl .chip{width:32px;height:32px;border-radius:10px}
+.tm.t-xl .chip svg{width:18px;height:18px}
+.tm.t-xl .nm{font-size:14px}
+.tm.t-xl .sz{font-size:17px;color:var(--text);margin-top:3px}
+.tm.t-md .tc{padding:6px 8px}
+.tm.t-md .chip{width:20px;height:20px;border-radius:6px;margin-bottom:4px}
+.tm.t-md .chip svg{width:12px;height:12px}
+.tm.t-md .nm{font-size:11.5px}
+.tm.t-md .sz{font-size:10.5px}
+.tm.t-sm .tc{align-items:center;justify-content:center;padding:0}
+.tm.t-sm .chip{margin:0;width:20px;height:20px;border-radius:6px;background:transparent;box-shadow:none}
+.tm.t-sm .chip svg{width:13px;height:13px}
+.tm .pv{margin-top:12px;width:100%;display:flex;flex-direction:column;gap:3px;pointer-events:auto}
+.tm .pv a{position:relative;font-family:var(--body);display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;font-size:11px;padding:3px 7px;border-radius:6px;
+  color:var(--text);background:color-mix(in srgb,var(--panel) 55%,transparent);overflow:hidden;cursor:pointer}
+.tm .pv a::before{content:"";position:absolute;inset:0 auto 0 0;width:var(--w);background:color-mix(in srgb,var(--c) 38%,transparent);pointer-events:none}
+.tm .pv a span{position:relative;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tm .pv a .num{color:var(--muted);font-family:var(--tc)}
+.tm .pv a:hover{background:color-mix(in srgb,var(--panel) 80%,transparent)}
+.tm.open:hover{filter:brightness(1.06)}
+.tmlayer.morph .tc{opacity:0}
+.tm .tc{transition:opacity .2s var(--ease) .05s}
+.tiplist{margin-top:6px;padding-top:6px;border-top:.5px solid var(--line);display:flex;flex-direction:column;gap:2px;min-width:200px}
+.tiplist div{display:flex;justify-content:space-between;gap:14px}
+.tiplist div span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tipsub{color:var(--muted);font-size:11.5px;margin-top:4px}
+.treemap{height:420px}
+
+.comp .k svg{width:14px;height:14px;stroke:var(--accent);stroke-width:1.6;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.comp .d{line-height:1.5}
+.comp .d .faint{color:var(--faint);font-size:11.5px}
+.comp .d .badge{margin-left:4px}

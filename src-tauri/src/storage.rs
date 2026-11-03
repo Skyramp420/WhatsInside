@@ -591,18 +591,39 @@ impl Tree {
     }
 
     fn view(&self, id: u32, depth: u8, limit: usize) -> NodeView {
+        self.view_inner(id, depth, limit, false)
+    }
+
+    /// `skip_chains`: for tiles inside the listing, follow single dominant
+    /// sub-folders so the preview shows what's really inside.
+    fn view_inner(&self, id: u32, depth: u8, limit: usize, skip_chains: bool) -> NodeView {
         let n = &self.nodes[id as usize];
-        let children = if depth == 0 || n.kind != Kind::Dir {
+        let mut src = id;
+        let mut via = Vec::new();
+        if skip_chains && depth > 0 {
+            while via.len() < 4 {
+                let cn = &self.nodes[src as usize];
+                let Some(&big) = cn.children.first() else { break };
+                let b = &self.nodes[big as usize];
+                if cn.kind != Kind::Dir || b.kind != Kind::Dir || cn.size == 0 || b.size * 5 < cn.size * 4 {
+                    break;
+                }
+                via.push(b.name.to_string());
+                src = big;
+            }
+        }
+        let sn = &self.nodes[src as usize];
+        let children = if depth == 0 || sn.kind != Kind::Dir {
             None
         } else {
-            let mut v: Vec<NodeView> = n
+            let mut v: Vec<NodeView> = sn
                 .children
                 .iter()
                 .take(limit)
-                .map(|&c| self.view(c, depth - 1, if depth > 1 { 16 } else { limit }))
+                .map(|&c| self.view_inner(c, depth - 1, if depth > 1 { 16 } else { limit }, true))
                 .collect();
-            if n.children.len() > limit {
-                let rest = &n.children[limit..];
+            if sn.children.len() > limit {
+                let rest = &sn.children[limit..];
                 v.push(NodeView {
                     id: None,
                     name: format!("{} ďalších položiek", rest.len()),
@@ -612,6 +633,7 @@ impl Tree {
                     age_days: 0,
                     tag: None,
                     children: None,
+                    via: Vec::new(),
                 });
             }
             Some(v)
@@ -625,6 +647,7 @@ impl Tree {
             age_days: self.age(n.mtime),
             tag: self.tags.get(&id).cloned(),
             children,
+            via,
         }
     }
 
@@ -646,7 +669,7 @@ impl Tree {
         }
         crumbs.reverse();
         Some(Listing {
-            node: self.view(id, 3, 150),
+            node: self.view(id, 2, 150),
             path: self.path_of(id),
             crumbs,
             owner: self.owner(id).cloned(),
@@ -846,6 +869,10 @@ pub struct NodeView {
     pub age_days: u32,
     pub tag: Option<Tag>,
     pub children: Option<Vec<NodeView>>,
+    /// Folders skipped because each held almost everything (Steam › steamapps
+    /// › common): `children` then belong to the last one.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub via: Vec<String>,
 }
 
 #[derive(Serialize, Clone, Debug)]
@@ -1269,6 +1296,11 @@ mod tests {
             let l = t.describe(0).unwrap();
             let kids = l.node.children.unwrap();
             assert_eq!(kids[0].name, "Videá");
+            // SteamLibrary › steamapps › common › Hollow Knight: the tile
+            // skips the chain and previews what's really inside.
+            let steam = kids.iter().find(|k| k.name == "SteamLibrary").unwrap();
+            assert_eq!(steam.via, vec!["steamapps", "common", "Hollow Knight"]);
+            assert_eq!(steam.children.as_ref().unwrap()[0].name, "data.bin");
             let videa = t.describe(kids[0].id.unwrap()).unwrap();
             let names: Vec<_> = videa
                 .node

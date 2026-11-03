@@ -248,13 +248,13 @@ pub fn undo(index: usize) -> Result<(), String> {
     if !r.ok {
         return Err(r.error.unwrap_or_else(|| "Nepodarilo sa.".into()));
     }
-    // apply() appended the reverse change; mark both as a finished pair.
+    // apply() logged the reverse change; the original marked "undone" says it all.
     let mut log = changes();
+    if log.last().is_some_and(|l| l.id == c.id && l.enabled != c.enabled && !l.undone) {
+        log.pop();
+    }
     if let Some(x) = log.get_mut(index) {
         x.undone = true;
-    }
-    if let Some(last) = log.last_mut() {
-        last.undone = true;
     }
     save_changes(&log);
     Ok(())

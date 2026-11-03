@@ -6,27 +6,28 @@ Nič nemení bez opýtania, každá zmena sa dá vrátiť. Keď ju zavrieš, neb
 
 **Stiahnuť:** [najnovší inštalátor](https://github.com/Skyramp420/WhatsInside/releases/latest). Ďalšie verzie si appka stiahne sama.
 
-## Čo vie (v0.4)
+## Čo vie (v0.5)
 
-- **Pomocník**: skontroluje disky, cache, inštalačky v Stiahnutých, hibernáciu, pamäť, RGB appky, automatické spúšťanie, plán napájania, Herný režim a HAGS. Ku každej veci povie prečo a ako to spraviť, sám nič nemení.
-- **Úložisko**: paralelný scan, treemap s plynulým priblížením pri vstupe do priečinka, vyhľadávanie, označenie hier (Steam, Epic, Xbox, GOG, Riot, Ubisoft, EA) a programov, najväčšie súbory, staré a zabudnuté súbory, cache na uvoľnenie.
+- **Pomocník**: jedna obrazovka so všetkým, čo stojí za pozornosť: disky, cache, staré inštalačky, pamäť, automatické spúšťanie a nastavenie hardvéru.
+- **Výkon**: kontrola hardvéru, ktorá na mnohých PC odhalí najväčšie straty: RAM bez zapnutého XMP/EXPO, jeden kanál pamäte, monitor nastavený na 60 Hz, kábel monitora v základnej doske namiesto grafiky, starý ovládač grafiky. K tomu úpravy Windowsu, ktoré naozaj niečo robia (oneskorenie po prihlásení, nahrávanie hier na pozadí, HAGS, plán napájania…), každá s prepínačom späť. A zoznam obľúbených „optimalizácií“, ktoré zámerne nerobíme, s vysvetlením prečo.
+- **Úložisko**: paralelný scan, prehľadná mapa s ikonami a náhľadom obsahu, vyhľadávanie, označenie hier (Steam, Epic, Xbox, GOG, Riot, Ubisoft, EA, Battle.net) a programov, najväčšie súbory, staré súbory, cache na uvoľnenie.
 - **Procesy**: živý prehľad zoskupený podľa appky s vysvetlením, služby bežiace v svchost, značka „So systémom“, ukončenie procesu.
-- **Po spustení**: Run kľúče, priečinok Po spustení, naplánované úlohy, služby, RunOnce a Winlogon, aj tie, ktoré Správca úloh neukáže. Vypínanie jedným klikom (jedno okno UAC), história zmien s Vrátiť.
+- **Po spustení**: Run kľúče, priečinok Po spustení, naplánované úlohy, služby, RunOnce a Winlogon, aj to, čo Správca úloh neukáže. Vypínanie jedným klikom, pri službách s jediným oknom UAC.
+- **Hardvér**: komponenty PC a zberateľská karta na zdieľanie (Discord).
+- **História zmien**: všetko, čo WhatsInside kedy zmenil, po dňoch, s tlačidlom Vrátiť.
 - **Aktualizácie**: z GitHub Releases, overené cez SHA-256.
-- **Hardvér**: zberateľská karta PC (náklon a lesklá fólia pri myši, tmavá/svetlá, dúhová/zlatá) na zdieľanie (Discord): zistí procesor, grafiku aj s VRAM, dosku, RAM (typ, rýchlosť, výrobca zo SMBIOS), disky a systém; ostatné doplníš sám. Kopírovanie obrázka do schránky, uloženie PNG alebo text.
+
+Čo nerobí: nič nemaže bez opýtania, nemení nič na pozadí, nemá službu ani ikonu v tray.
 
 ## Plán
 
-| Verzia | Čo |
+| Kedy | Čo |
 |---|---|
-| ďalej | mazanie cache do Koša, scan cez MFT, diagnostika (teploty, throttling), samostatná záložka RGB |
+| ďalej | mazanie cache do Koša, scan cez MFT, teploty a throttling, samostatná záložka na ovládanie svetiel |
 
-## Podporovaný hardvér (RGB, zatiaľ len detekcia)
+## Svetlá (RGB)
 
-| Zariadenie | Ako |
-|---|---|
-| MSI MAG Z790 TOMAHAWK WIFI (`1462:7D91`) | USB HID, Mystic Light 185 B |
-| GIGABYTE AORUS RTX 5080 MASTER / ICE | I2C cez NVAPI, `0x71` (LCD displej zatiaľ nie) |
+Zatiaľ len rozpoznanie zariadení a výrobcovských appiek (MSI Center, GIGABYTE Control Center, Armoury Crate, iCUE, SignalRGB…). Ovládanie bude mať vlastnú záložku, ID zariadení vychádzajú z [OpenRGB](https://gitlab.com/CalcProgrammer1/OpenRGB).
 
 ## Vývoj
 
@@ -41,4 +42,4 @@ Každý push na `main` zostaví cez GitHub Actions `whatsinside.exe` (prenosná 
 Vydanie: zvýš verziu v `src-tauri/Cargo.toml` a `src-tauri/tauri.conf.json`, napíš `notes/vX.Y.Z.md` a pushni tag `vX.Y.Z`. CI vytvorí Release s inštalátorom a `latest.json`, z ktorého si appky aktualizáciu stiahnu.
 
 ## Licencia
-GPL-2.0-only. ID zariadení vychádzajú z projektu [OpenRGB](https://gitlab.com/CalcProgrammer1/OpenRGB). Písmo Inter (SIL OFL).
+GPL-2.0-only. Písmo Inter (SIL OFL).

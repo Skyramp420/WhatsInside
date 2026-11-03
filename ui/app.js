@@ -51,6 +51,19 @@ const ICON = {
   rocket: '<svg viewBox="0 0 16 16"><path d="M8 1.8v5.4"/><path d="M4.4 4.1a5.3 5.3 0 1 0 7.2 0"/></svg>',
   gpu: '<svg viewBox="0 0 16 16"><rect x="1.5" y="4" width="13" height="7.5" rx="1.5"/><circle cx="5.2" cy="7.8" r="1.9"/><circle cx="10.8" cy="7.8" r="1.9"/><path d="M3 11.5v2"/></svg>',
   warn: '<svg viewBox="0 0 16 16"><path d="M8 2.2l6.2 11H1.8z"/><path d="M8 6.5v3M8 11.5h.01"/></svg>',
+  cpu: '<svg viewBox="0 0 16 16"><rect x="4" y="4" width="8" height="8" rx="1.6"/><path d="M6.5 1.5V4M9.5 1.5V4M6.5 12v2.5M9.5 12v2.5M1.5 6.5H4M1.5 9.5H4M12 6.5h2.5M12 9.5h2.5"/></svg>',
+  board: '<svg viewBox="0 0 16 16"><rect x="2" y="2" width="12" height="12" rx="1.6"/><rect x="5" y="5" width="4" height="4" rx=".6"/><path d="M11 5v2M11 9v2M5 11h4"/></svg>',
+  os: '<svg viewBox="0 0 16 16"><path d="M2 3.5l5-.7v4.7H2zM8 2.7l6-.9v5.7H8zM2 8.5h5v4.7l-5-.7zM8 8.5h6v5.7l-6-.9z"/></svg>',
+  monitor: '<svg viewBox="0 0 16 16"><rect x="1.5" y="2.5" width="13" height="8.5" rx="1.5"/><path d="M6 14h4M8 11v3"/></svg>',
+  video: '<svg viewBox="0 0 16 16"><rect x="1.5" y="3.5" width="9.5" height="9" rx="1.8"/><path d="M11 7l3.5-2v6L11 9"/></svg>',
+  image: '<svg viewBox="0 0 16 16"><rect x="1.8" y="2.5" width="12.4" height="11" rx="1.8"/><circle cx="5.6" cy="6.2" r="1.2"/><path d="M2 12l3.8-3.5 2.6 2.3 2.4-2.1 3.4 3"/></svg>',
+  audio: '<svg viewBox="0 0 16 16"><path d="M6 12.2V3.5l7-1.5v8.7"/><circle cx="4.3" cy="12.2" r="1.8"/><circle cx="11.3" cy="10.7" r="1.8"/></svg>',
+  archive: '<svg viewBox="0 0 16 16"><rect x="2" y="2" width="12" height="12" rx="2"/><path d="M8 2v2M8 5v1.5M8 7.5V9"/><rect x="6.8" y="9.5" width="2.4" height="2.4" rx=".6"/></svg>',
+  disc: '<svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.2"/><circle cx="8" cy="8" r="1.6"/></svg>',
+  exe: '<svg viewBox="0 0 16 16"><rect x="1.8" y="2.5" width="12.4" height="11" rx="1.8"/><path d="M1.8 5.5h12.4M4.5 8.5l2 1.5-2 1.5M8 11.5h3"/></svg>',
+  gear: '<svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="2.2"/><path d="M8 1.8v1.8M8 12.4v1.8M1.8 8h1.8M12.4 8h1.8M3.6 3.6l1.3 1.3M11.1 11.1l1.3 1.3M3.6 12.4l1.3-1.3M11.1 4.9l1.3-1.3"/></svg>',
+  doc: '<svg viewBox="0 0 16 16"><path d="M4 1.8h5l3 3v8.4c0 .6-.4 1-1 1H4c-.6 0-1-.4-1-1V2.8c0-.6.4-1 1-1z"/><path d="M5.5 8h5M5.5 10.5h5M5.5 5.5h2"/></svg>',
+  user: '<svg viewBox="0 0 16 16"><circle cx="8" cy="5.5" r="2.8"/><path d="M2.8 14c.6-2.7 2.7-4.3 5.2-4.3s4.6 1.6 5.2 4.3"/></svg>',
 };
 const VERDICT = {
   rgb: { label: 'RGB appka', cls: 'rgb' },
@@ -278,7 +291,7 @@ function renderStorage() {
       </div>
       <div class="owner" id="ownerBar" hidden></div>
       <div class="card treemap land" id="tmCard" style="--i:4"></div>
-      <div class="legend"><span style="--c:var(--lilac)">Hry</span><span style="--c:var(--blue)">Programy</span><span style="--c:var(--amber)">Dá sa uvoľniť</span><span style="--c:var(--faint)">Systém</span><span style="--c:var(--mint)">Ostatné</span></div>
+      <div class="legend"><span style="--c:var(--lilac)">Hry</span><span style="--c:var(--blue)">Programy</span><span style="--c:var(--amber)">Dá sa uvoľniť</span><span style="--c:var(--faint)">Systém</span><span style="--c:var(--teal)">Ostatné priečinky</span><span style="--c:var(--muted)">Súbory</span></div>
       <div class="tabrow"><div class="seg" id="stab"><div class="knob"></div>${TABS.map(([k, l]) => `<button data-k="${k}" class="${st.tab === k ? 'on' : ''}">${l}</button>`).join('')}</div><span id="resultsInfo"></span></div>
       <div class="card list" id="slist"></div>
       ${notes.length ? `<div class="note">${notes.map(esc).join('<br>')}</div>` : ''}
@@ -436,7 +449,40 @@ function tmTip(n, parentSize) {
   const files = n.kind === 'dir' ? ` · ${sk(n.files)} ${plural(n.files, 'súbor', 'súbory', 'súborov')}` : '';
   const when = n.age_days ? `<br><span>Zmenené ${age(n.age_days)}</span>` : '';
   const tag = n.tag && n.tag.kind !== 'system' && n.tag.kind !== 'app_data' ? `<div style="margin-top:5px">${tagPill(n.tag)}</div>` : '';
-  return `<b>${esc(n.name)}</b><span class="num">${bytes(n.size)}${pct}${files}</span>${when}${tag}`;
+  const sys = n.kind === 'file' && SYSFILES[n.name.toLowerCase()] ? `<div class="tipsub">${esc(SYSFILES[n.name.toLowerCase()])}</div>` : '';
+  const inside = n.kind === 'dir' ? subItems(n) : null;
+  const top = inside ? inside.items.slice(0, 5) : [];
+  const list = top.length ? `<div class="tiplist">${inside.path.length ? `<div class="tipsub">› ${esc(inside.path.join(' › '))}</div>` : ''}${top.map((c) => `<div><span>${esc(c.name)}</span><span class="num">${bytes(c.size)}</span></div>`).join('')}</div>` : '';
+  return `<b>${esc(n.name)}</b><span class="num">${bytes(n.size)}${pct}${files}</span>${when}${tag}${sys}${list}`;
+}
+
+const EXT_ICON = [
+  [/\.(mp4|mov|mkv|avi|webm|m4v|braw|r3d|mxf|prores|ts)$/i, 'video'],
+  [/\.(jpe?g|png|gif|webp|heic|psd|tiff?|raw|cr2|cr3|nef|arw|dng|exr)$/i, 'image'],
+  [/\.(wav|mp3|flac|aac|ogg|m4a|aiff?)$/i, 'audio'],
+  [/\.(zip|rar|7z|tar|gz|bz2|xz)$/i, 'archive'],
+  [/\.(iso|img|vhdx?|vmdk|qcow2|wim|esd)$/i, 'disc'],
+  [/\.(exe|msi|msix|appx)$/i, 'exe'],
+  [/\.(sys|dll|dmp|etl|log|db|dat|bin|pak|cab)$/i, 'gear'],
+  [/\.(pdf|docx?|xlsx?|pptx?|txt|md|rtf|odt)$/i, 'doc'],
+];
+/** Icon for a tile: what it belongs to, else what kind of file it is. */
+function tileIcon(n) {
+  const t = n.tag?.kind;
+  if (t === 'game') return 'game';
+  if (t === 'cache') return 'broom';
+  if (t === 'app') return 'app';
+  if (n.kind === 'small' || n.kind === 'other') return 'small';
+  if (n.kind === 'file') return (EXT_ICON.find(([re]) => re.test(n.name)) || [0, 'file'])[1];
+  if (t === 'system' || /^(windows|program ?data|\$recycle\.bin|system volume information)$/i.test(n.name)) return 'gear';
+  if (/^(users|používatelia)$/i.test(n.name)) return 'user';
+  if (/^(videos?|videá|klipy|captures|footage|render)$/i.test(n.name)) return 'video';
+  if (/^(pictures|obrázky|photos|fotky|screenshots)$/i.test(n.name)) return 'image';
+  if (/^(music|hudba)$/i.test(n.name)) return 'audio';
+  if (/^(downloads|stiahnuté)$/i.test(n.name)) return 'archive';
+  if (/^(documents|dokumenty)$/i.test(n.name)) return 'doc';
+  if (/^program files/i.test(n.name)) return 'app';
+  return 'dir';
 }
 
 /** Merges specks into one "menších" tile so the map shows what matters. */
@@ -451,6 +497,7 @@ function foldSmall(items, total, minFrac) {
 
 /** Skips chains like Steam › steamapps › common that hold one big thing. */
 function subItems(n) {
+  if (n.via?.length) return { items: (n.children || []).filter((c) => c.size > 0), path: n.via };
   let cur = n;
   const path = [];
   for (let d = 0; d < 3; d++) {
@@ -481,46 +528,41 @@ function drawTreemap(mode = null, fromRect = null, prev = null) {
   if (!kids.length) {
     layer.innerHTML = `<div class="empty">${ICON.dir}Tento priečinok je prázdny.</div>`;
   } else {
-    const inherited = l.crumbs.map((c) => st.colors.get(c.id)).find(Boolean);
     const KCOL = { game: 'var(--lilac)', app: 'var(--blue)', cache: 'var(--amber)', system: 'var(--faint)' };
-    const color = (n, i) => (n.kind === 'file' ? 'var(--muted)' : n.kind !== 'dir' ? 'var(--faint)' : KCOL[n.tag?.kind] || st.colors.get(n.id) || inherited || PALETTE[i % PALETTE.length]);
+    // Colors carry meaning (see the legend); everything else is one calm color.
+    const color = (n) => (n.kind === 'file' ? 'var(--muted)' : n.kind !== 'dir' ? 'var(--faint)' : KCOL[n.tag?.kind] || 'var(--teal)');
     const rects = squarify(kids.map((k) => k.size), 0, 0, W, H);
-    const G = 3;
+    const G = 4;
     kids.forEach((n, i) => {
       let [x, y, w, h] = rects[i];
       x += G / 2; y += G / 2; w -= G; h -= G;
       if (w < 2 || h < 2) return;
       if (n.id != null) st.rects.set(n.id, [x, y, w, h]);
+      const tier = w > 170 && h > 120 ? 'xl' : w > 100 && h > 62 ? 'lg' : w > 60 && h > 36 ? 'md' : w > 24 && h > 24 ? 'sm' : 'xs';
       const el = document.createElement('div');
-      el.className = `tm ${n.kind}${n.tag?.kind === 'game' ? ' isgame' : ''}${n.tag?.kind === 'cache' ? ' iscache' : ''}`;
+      el.className = `tm ${n.kind} t-${tier}${n.tag?.kind === 'game' ? ' isgame' : ''}${n.tag?.kind === 'cache' ? ' iscache' : ''}${n.kind === 'dir' && n.id != null ? ' open' : ''}`;
       el.dataset.id = n.id ?? '';
       el.style.cssText = `left:${x}px;top:${y}px;width:${w}px;height:${h}px;--c:${color(n, i)}`;
-      const big = w > 90 && h > 46;
-      const showTag = n.tag && (n.tag.kind === 'game' || n.tag.kind === 'cache') && w > 120;
-      if (big || (w > 54 && h > 30)) el.innerHTML = `<div class="lbl">${showTag ? `<span class="ti">${ICON[TAG[n.tag.kind].icon]}</span>` : ''}${esc(n.name)}<small>${bytes(n.size)}</small></div>`;
+      const pct = l.node.size ? (n.size / l.node.size) * 100 : 0;
+      const pctTxt = pct >= 1 ? `${sk(pct, 0)} %` : '<1 %';
+      const chip = `<span class="chip">${ICON[tileIcon(n)] || ICON.file}</span>`;
+      const si = n.kind === 'dir' ? subItems(n) : { items: [], path: [] };
+      let html = '';
+      if (tier === 'xl' || tier === 'lg') {
+        const via = si.path.length && tier === 'xl' ? `<span class="via">› ${esc(si.path.join(' › '))}</span>` : '';
+        const prev = tier === 'xl' ? foldSmall(si.items, n.size, 0.03).filter((c) => c.id != null).slice(0, Math.max(0, Math.floor((h - 118) / 24))) : [];
+        html = `<div class="tc">${chip}<span class="nm">${esc(n.name)}</span>${via}<span class="sz">${bytes(n.size)} <em>${pctTxt}</em></span>
+          ${prev.length ? `<div class="pv">${prev.map((c) => `<a data-id="${c.id}" style="--w:${Math.max(4, (c.size / n.size) * 100)}%"><span>${esc(c.name)}</span><span class="num">${bytes(c.size)}</span></a>`).join('')}</div>` : ''}</div>`;
+      } else if (tier === 'md') {
+        html = `<div class="tc">${w > 110 ? chip : ''}<span class="nm">${esc(n.name)}</span><span class="sz">${bytes(n.size)}</span></div>`;
+      } else if (tier === 'sm') {
+        html = `<div class="tc">${chip}</div>`;
+      }
+      el.innerHTML = html;
       el.onmousemove = (e) => showTip(tmTip(n, l.node.size), e.clientX, e.clientY);
       el.onmouseleave = hideTip;
       if (n.kind === 'dir' && n.id != null) el.onclick = () => { hideTip(); openNode(n.id); };
-      const si = subItems(n);
-      const sub = foldSmall(si.items, n.size, 0.02);
-      if (si.path.length && w > 170 && h > 46) el.querySelector('.lbl')?.insertAdjacentHTML('beforeend', `<span class="via">› ${esc(si.path.join(' › '))}</span>`);
-      if (big && h > 90 && w > 120 && sub.length > 1) {
-        const sr = squarify(sub.map((c) => c.size), 4, 38, w - 8, h - 42);
-        sub.forEach((c, k) => {
-          let [sx, sy, sw, sh] = sr[k];
-          sx += 1; sy += 1; sw -= 2; sh -= 2;
-          if (sw < 3 || sh < 3) return;
-          if (c.id != null) st.rects.set(c.id, [x + sx, y + sy, sw, sh]);
-          const s = document.createElement('div');
-          s.className = `tm sub ${c.kind}`;
-          s.dataset.id = c.id ?? '';
-          s.style.cssText = `left:${sx}px;top:${sy}px;width:${sw}px;height:${sh}px;--c:${color(n, i)}`;
-          if (sw > 64 && sh > 28) s.innerHTML = `<div class="lbl">${esc(c.name)}</div>`;
-          s.onmousemove = (e) => { e.stopPropagation(); showTip(tmTip(c, n.size), e.clientX, e.clientY); };
-          if (c.kind === 'dir' && c.id != null) s.onclick = (e) => { e.stopPropagation(); hideTip(); openNode(c.id); };
-          el.appendChild(s);
-        });
-      }
+      $$('.pv a', el).forEach((a) => (a.onclick = (e) => { e.stopPropagation(); hideTip(); openNode(+a.dataset.id); }));
       layer.appendChild(el);
     });
   }
@@ -942,30 +984,8 @@ function openRecommend() {
   };
 }
 
-function when(at) {
-  const d = new Date(at * 1000);
-  return d.toLocaleString('sk-SK', { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' });
-}
-function openChanges() {
-  const list = changesLog.map((c, i) => [c, i]).reverse();
-  const m = modal(`<h3>Zmeny</h3>
-    <p class="mp">Všetko, čo WhatsInside zmenil. Zmena sa dá vrátiť, kým ju nevrátiš alebo neprepneš znova.</p>
-    <div class="mlist">${list.length ? list.map(([c, i]) => `<div class="mrow ch ${c.undone ? 'done' : ''}">
-      <span class="dot ${c.enabled ? 'mint' : 'amber'}"></span><div><b>${esc(c.name)}</b><span>${c.enabled ? 'Zapnuté' : 'Vypnuté'} · ${when(c.at)}${c.undone ? ' · vrátené' : ''}</span></div>
-      ${c.undone ? '' : `<button class="btn small" data-undo="${i}">Vrátiť</button>`}</div>`).join('') : '<div class="empty">Zatiaľ nič.</div>'}</div>
-    <div class="mact"><button class="btn" data-close>Zavrieť</button></div>`);
-  $$('[data-undo]', m).forEach((b) => (b.onclick = async () => {
-    b.disabled = true;
-    try { await invoke('changes_undo', { index: +b.dataset.undo }); toast('Vrátené'); }
-    catch (e) { toast(String(e), 'err'); }
-    closeModal();
-    await loadStartup();
-    openChanges();
-  }));
-}
-
 $('#startupRefresh').onclick = loadStartup;
-$('#changesBtn').onclick = openChanges;
+$('#changesBtn').onclick = () => setView('history');
 $('#startupSearch').addEventListener('input', debounce((e) => { su.q = e.target.value.trim().toLowerCase(); renderStartup(); }, 120));
 views.startup = { enter() { loadStartup(); } };
 
@@ -988,6 +1008,274 @@ function bindTips(root) {
   });
 }
 
+/* ========================================================== PERFORMANCE */
+const DGPU = /nvidia|geforce|quadro|radeon\s*(rx|pro)|radeon\s*\d{3,4}|arc\s*a\d|arc\s*b\d/i;
+const IGPU = /intel.*(uhd|iris|hd graphics)|radeon\(tm\)\s*graphics|^amd radeon graphics|radeon\s*\d{3}m|vega\s*\d+ graphics/i;
+let displays = null, tweakStates = null;
+
+function monthsSince(driverDate) {
+  const m = /^(\d{1,2})-(\d{1,2})-(\d{4})$/.exec(driverDate || '');
+  if (!m) return null;
+  const d = new Date(+m[3], +m[1] - 1, +m[2]);
+  return Math.floor((Date.now() - d) / (30.4 * 864e5));
+}
+
+/** Hardware checks that matter on any PC. Returns tips (helper format) and ok lines. */
+function hwChecks(specs, displays, facts) {
+  const tips = [], ok = [];
+  if (!specs) return { tips, ok };
+  const mods = specs.ram_modules || [];
+
+  // RAM below its rated (XMP/EXPO) speed
+  const slow = mods.filter((m) => m.rated_speed && m.configured_speed && m.configured_speed < m.rated_speed - 150);
+  if (slow.length) {
+    const m = slow[0];
+    tips.push({ level: 'high', icon: 'ram', key: 'xmp', title: `RAM beží na ${sk(m.configured_speed)} MT/s, ale je predávaná ako ${sk(m.rated_speed)} MT/s`,
+      text: 'Pamäť sa bez zapnutia profilu v BIOSe spustí na bezpečnej základnej rýchlosti. V hrách, kde brzdí procesor, býva rozdiel 5–15 %. Rýchlosť odhadujem z označenia modulu, ak si ju znížil zámerne kvôli stabilite, ignoruj to.',
+      list: slow.map((x) => [`${x.slot || 'Modul'} · ${x.part}`, `${sk(x.configured_speed)} / ${sk(x.rated_speed)} MT/s`]),
+      steps: ['Reštartuj PC a stláčaj Delete (alebo F2), otvorí sa BIOS.', 'Zapni profil pamäte: XMP (Intel), EXPO alebo DOCP (AMD). Býva v sekcii pamäte alebo pretaktovania, niektorí výrobcovia ho volajú inak (napr. A-XMP).', 'Ulož (F10). Prvý štart môže trvať dlhšie, pamäť sa „trénuje“.'] });
+  } else if (mods.some((m) => m.rated_speed && m.configured_speed)) {
+    ok.push(`RAM beží na plnej rýchlosti (${sk(mods[0].configured_speed)} MT/s)`);
+  }
+
+  // Single channel
+  if (mods.length === 1) {
+    tips.push({ level: 'mid', icon: 'ram', key: 'channel', title: 'Máš len jeden modul RAM, beží v jednom kanáli',
+      text: 'Pamäť má polovičnú priepustnosť. Druhý rovnaký modul často pridá v hrách 10–20 %, pri integrovanej grafike aj viac. Pri notebooku s pamäťou napevno to ale nezmeníš.',
+      steps: ['Dokúp rovnaký modul (rovnaké označenie, ' + (mods[0].part || 'pozri v Hardvéri') + ').', 'Podľa manuálu dosky ho daj do druhého kanála, väčšinou sloty A2 a B2.'] });
+  } else if (mods.length >= 2) {
+    const ch = mods.map((m) => m.channel);
+    if (ch.every(Boolean) && new Set(ch).size === 1) {
+      tips.push({ level: 'mid', icon: 'ram', key: 'channel', title: 'Moduly RAM sú v rovnakom kanáli',
+        text: 'Podľa názvov slotov sú oba moduly v tom istom kanáli, takže pamäť beží len jednokanálovo.',
+        list: mods.map((m) => [m.slot, `${sk(m.size_mb / 1024)} GB`]),
+        steps: ['Pozri manuál dosky, ktoré sloty použiť pre dva moduly (väčšinou A2 a B2).'] });
+    } else if (ch.every(Boolean)) ok.push('RAM beží vo viacerých kanáloch');
+  }
+
+  // Monitors
+  for (const d of displays || []) {
+    const name = `${d.width}×${d.height}`;
+    if (d.max_hz > d.hz + 5) {
+      tips.push({ level: 'high', icon: 'monitor', key: 'hz', title: `Monitor beží na ${d.hz} Hz, ale vie ${d.max_hz} Hz`,
+        text: `Displej ${name} máš nastavený na nižšiu obnovovaciu frekvenciu, než zvláda. Obraz je trhanejší a myš má väčšie oneskorenie. Častá chyba pri novom monitore.`,
+        steps: ['Nastavenia → Systém → Obrazovka → Rozšírené nastavenia obrazovky.', `Pri „Zvoliť obnovovaciu frekvenciu“ vyber ${d.max_hz} Hz.`, 'Ak tam vyššia nie je, použi DisplayPort alebo kvalitnejší HDMI kábel.'] });
+    } else if (d.hz > 0) ok.push(`Monitor ${name} beží na plných ${d.hz} Hz`);
+  }
+
+  // Monitor plugged into the motherboard while a graphics card is installed (desktops only)
+  const hasDgpu = (specs.gpus || []).some((g) => DGPU.test(g.name));
+  const onIgpu = (displays || []).filter((d) => IGPU.test(d.adapter) && !DGPU.test(d.adapter));
+  if (hasDgpu && onIgpu.length && !facts?.has_battery) {
+    tips.push({ level: 'high', icon: 'gpu', key: 'cable', title: 'Monitor je zapojený do základnej dosky, nie do grafiky',
+      text: `${onIgpu.length > 1 ? 'Niektoré monitory idú' : 'Monitor ide'} cez grafiku v procesore (${onIgpu[0].adapter}). Hry potom bežia pomalšie alebo s oneskorením, hoci máš výkonnú grafickú kartu.`,
+      steps: ['Prepoj kábel monitora do portu na grafickej karte. Je nižšie na zadnej strane PC, porty sú v rade vodorovne.', 'Porty hore pri USB patria základnej doske, tie nepoužívaj.'] });
+  } else if (hasDgpu && (displays || []).length) ok.push('Monitor je zapojený do grafickej karty');
+
+  // Old GPU driver
+  for (const g of (specs.gpus || []).filter((g) => DGPU.test(g.name))) {
+    const mo = monthsSince(g.driver_date);
+    if (mo == null) continue;
+    const where = /nvidia|geforce|quadro/i.test(g.name) ? 'NVIDIA app alebo nvidia.com/drivers' : /radeon/i.test(g.name) ? 'AMD Software: Adrenalin Edition' : 'Intel Graphics Software';
+    if (mo >= 6) {
+      tips.push({ level: 'low', icon: 'gpu', key: 'driver', title: `Ovládač grafiky je ${mo} ${plural(mo, 'mesiac', 'mesiace', 'mesiacov')} starý`,
+        text: `${g.name}, verzia ${g.driver_version || '?'}. Nové ovládače často prinášajú opravy a vyšší výkon v nových hrách.`,
+        steps: [`Aktualizuj cez ${where}.`] });
+    } else ok.push(`Ovládač grafiky je aktuálny (${g.driver_date.replace(/-/g, '. ')})`);
+  }
+  return { tips, ok };
+}
+
+const TWEAK_CATS = [
+  ['responsive', 'Odozva systému'],
+  ['games', 'Hry'],
+  ['background', 'Na pozadí'],
+  ['looks', 'Pre slabšie PC'],
+];
+const RECOMMENDED_TWEAKS = ['startup_delay', 'menu_delay', 'game_mode', 'hags', 'tips'];
+const PLACEBO = [
+  ['Vypnutie Nagleho algoritmu a TCP úpravy', 'Hry posielajú dáta po svojom (väčšinou cez UDP), na ping to nemá vplyv.'],
+  ['SystemResponsiveness a NetworkThrottlingIndex', 'Týkajú sa len starej služby na prehrávanie médií. Hry z toho nič nemajú.'],
+  ['Win32PrioritySeparation a priority procesov', 'Plánovač Windowsu 10 a 11 rieši priority sám, zmena nemá merateľný efekt.'],
+  ['Vypnutie HPET a dynamic tick (bcdedit)', 'Na moderných PC môže odozvu skôr zhoršiť.'],
+  ['Čističe RAM', 'Voľná RAM je nevyužitá RAM. Windows si ju po vyčistení znova naplní a appky sa načítavajú pomalšie.'],
+  ['Vypnutie stránkovacieho súboru', 'Niektoré hry a appky padajú, keď chýba, aj keď máš RAM dosť.'],
+  ['Vypnutie SysMain (Superfetch)', 'Na SSD skoro bez efektu, skôr spomalí spúšťanie appiek.'],
+  ['Plán „Ultimate Performance“', 'Oproti Vysokému výkonu na stolnom PC nič nepridá.'],
+];
+
+async function loadPerf() {
+  const body = $('#perfBody');
+  if (!tweakStates) body.innerHTML = '<div class="card empty">Kontrolujem hardvér a nastavenia…</div>';
+  const [f, sp, ds, tw] = await Promise.all([
+    invoke('system_facts'), specs ? Promise.resolve(specs) : invoke('pc_specs'),
+    invoke('displays_list').catch(() => []), invoke('tweaks_list'),
+  ]);
+  specs = sp; displays = ds; tweakStates = tw; perfFacts = f;
+  renderPerf();
+}
+let perfFacts = null;
+
+function tipCards(tips, store) {
+  const level = { high: ['rec', 'Dôležité'], mid: ['amber', 'Odporúčam'], low: ['blue', 'Tip'] };
+  return `<div class="tips">${tips.map((t, i) => {
+    if (t.action) store[i] = t.action.run;
+    return `<div class="card tipcard land lvl-${t.level}" style="--i:${i}">
+      <div class="ti">${ICON[t.icon] || ICON.check}</div>
+      <div class="tb">
+        <div class="tt"><span>${esc(t.title)}</span><span class="badge lv-${level[t.level][0]}">${level[t.level][1]}</span></div>
+        <div class="tx">${esc(t.text)}</div>
+        ${t.list ? `<div class="tl">${t.list.map(([a, b]) => `<div><span>${esc(a)}</span><span class="num">${esc(b)}</span></div>`).join('')}</div>` : ''}
+        ${t.steps ? `<ol class="ts">${t.steps.map((s) => `<li>${esc(s)}</li>`).join('')}</ol>` : ''}
+      </div>
+      ${t.action ? `<button class="btn small" data-a="${i}">${esc(t.action.label)}${ICON.arrow}</button>` : ''}
+    </div>`;
+  }).join('')}</div>`;
+}
+
+const tweakBusy = new Set();
+function renderPerf() {
+  const hw = hwChecks(specs, displays, perfFacts);
+  const tw = (tweakStates || []).filter((t) => t.available);
+  const off = tw.filter((t) => !t.on && RECOMMENDED_TWEAKS.includes(t.key));
+  $('#perfCount').textContent = hw.tips.filter((t) => t.level === 'high').length || '';
+  const restart = { logoff: 'Po odhlásení', reboot: 'Po reštarte' };
+  const actions = [];
+  $('#perfBody').innerHTML = `
+    <h2>Kontrola hardvéru</h2>
+    <div class="hint">Najväčšie rozdiely vo výkone bývajú v nastavení hardvéru, nie vo Windowse.</div>
+    ${hw.tips.length ? tipCards(hw.tips, actions) : `<div class="card empty">${ICON.check}Hardvér je nastavený správne.</div>`}
+    ${hw.ok.length ? `<div class="card oklist" style="margin-top:12px">${hw.ok.map((o) => `<div>${ICON.check}<span>${esc(o)}</span></div>`).join('')}</div>` : ''}
+
+    <div class="h2row"><h2>Úpravy systému</h2>${off.length ? `<button class="btn primary small" id="twRec">Zapnúť odporúčané (${off.length})</button>` : ''}</div>
+    <div class="hint">Len úpravy, ktoré naozaj niečo robia. Každú vypneš rovnakým prepínačom a nájdeš ju v Histórii.</div>
+    ${TWEAK_CATS.map(([cat, title]) => {
+      const list = tw.filter((t) => t.category === cat);
+      if (!list.length) return '';
+      return `<h3 class="cat">${title}</h3><div class="card list">${list.map((t) => {
+        const busy = tweakBusy.has(t.key);
+        const laptop = t.key === 'power_plan' && perfFacts?.has_battery;
+        return `<div class="arow srow ${t.on ? '' : 'isoff'}" data-k="${t.key}">
+          <div style="min-width:0"><div class="t">${esc(t.title)}
+            <span class="badge ${t.effect === 'big' ? 'needed' : 'maybe'}">${t.effect === 'big' ? 'Citeľné' : 'Malý efekt'}</span>
+            ${restart[t.restart] ? `<span class="badge maybe">${restart[t.restart]}</span>` : ''}
+            ${RECOMMENDED_TWEAKS.includes(t.key) && !t.on ? '<span class="badge optional">Odporúčam</span>' : ''}</div>
+            <div class="a">${esc(t.about)}${laptop ? ' <b>Máš notebook, na batérii to neodporúčam.</b>' : ''}</div></div>
+          <div class="sw">${t.admin ? `<span data-tip="Zmena si vypýta povolenie správcu (UAC).">${SHIELD}</span>` : ''}
+            <label class="switch ${busy ? 'busy' : ''}"><input type="checkbox" ${t.on ? 'checked' : ''} ${busy ? 'disabled' : ''}><i></i></label></div></div>`;
+      }).join('')}</div>`;
+    }).join('')}
+
+    <details class="card placebo"><summary>${ICON.warn}<span><b>Čo zámerne nerobím</b><small>Obľúbené „optimalizácie“, ktoré na Windowse 10 a 11 nepomáhajú alebo škodia</small></span></summary>
+      <div class="plist">${PLACEBO.map(([a, b]) => `<div><b>${esc(a)}</b><span>${esc(b)}</span></div>`).join('')}</div></details>`;
+
+  $$('#perfBody [data-a]').forEach((b) => (b.onclick = () => actions[+b.dataset.a]?.()));
+  $$('#perfBody .srow').forEach((row) => {
+    const t = tw.find((x) => x.key === row.dataset.k);
+    $('input', row).onchange = (e) => applyTweaks([t], e.target.checked);
+  });
+  if ($('#twRec')) $('#twRec').onclick = () => {
+    const m = modal(`<h3>Zapnúť odporúčané úpravy</h3>
+      <p class="mp">Každú úpravu neskôr vypneš rovnakým prepínačom alebo ju vrátiš v Histórii.</p>
+      <div class="mlist">${off.map((t, k) => `<label class="mrow"><input type="checkbox" data-k="${k}" checked><div><b>${esc(t.title)}</b><span>${esc(t.about)}</span></div>${t.admin ? SHIELD : ''}</label>`).join('')}</div>
+      <div class="mact"><button class="btn" data-close>Zrušiť</button><button class="btn primary" id="twGo">Zapnúť</button></div>`);
+    $('#twGo', m).onclick = () => { const pick = $$('input:checked', m).map((c) => off[+c.dataset.k]); closeModal(); applyTweaks(pick, true); };
+  };
+  bindTips($('#perfBody'));
+}
+
+async function applyTweaks(list, enable) {
+  if (!list.length) return;
+  list.forEach((t) => tweakBusy.add(t.key));
+  renderPerf();
+  const res = await invoke('actions_apply', { actions: list.map((t) => ({ op: 'startup', id: `tweak:${t.key}`, name: t.title, toggle: { t: 'tweak', key: t.key }, enable })) })
+    .catch((e) => list.map(() => ({ ok: false, error: String(e) })));
+  list.forEach((t) => tweakBusy.delete(t.key));
+  const ok = list.filter((_, i) => res[i]?.ok), bad = res.find((r) => !r.ok);
+  if (ok.length) {
+    const r = ok.find((t) => t.restart === 'reboot') ? ' Prejaví sa po reštarte.' : ok.find((t) => t.restart === 'logoff') ? ' Prejaví sa po odhlásení.' : '';
+    toast(`${enable ? 'Zapnuté' : 'Vypnuté'}: ${ok.length}.${r}`);
+  }
+  if (bad) toast(bad.error || 'Nepodarilo sa.', 'err');
+  tweakStates = await invoke('tweaks_list');
+  renderPerf();
+  helperDirty = true;
+}
+
+$('#perfRefresh').onclick = () => { tweakStates = null; loadPerf(); };
+views.perf = { enter() { loadPerf(); } };
+
+/* ========================================================== HISTORY */
+const hi = { filter: 'all' };
+const HKINDS = [
+  ['all', 'Všetko', () => true],
+  ['startup', 'Spúšťanie', (c) => c.toggle && c.toggle.t !== 'tweak'],
+  ['tweak', 'Úpravy', (c) => c.toggle?.t === 'tweak'],
+  ['kill', 'Ukončené procesy', (c) => !c.toggle],
+];
+function changeText(c) {
+  const t = c.toggle;
+  if (!t) return ['Proces ukončený', 'rec'];
+  if (t.t === 'tweak') return [c.enabled ? 'Úprava zapnutá' : 'Úprava vypnutá', c.enabled ? 'mint' : 'amber'];
+  const where = { approved: 'zo spúšťania', task: 'naplánovaná úloha', service: 'služba' }[t.t] || '';
+  if (t.t === 'service') return [c.enabled ? 'Služba sa znova spúšťa automaticky' : 'Služba prepnutá na ručné spúšťanie', c.enabled ? 'mint' : 'amber'];
+  return [`${c.enabled ? 'Zapnuté' : 'Vypnuté'} · ${where}`, c.enabled ? 'mint' : 'amber'];
+}
+function dayLabel(d) {
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const x = new Date(d); x.setHours(0, 0, 0, 0);
+  const diff = Math.round((today - x) / 864e5);
+  if (diff === 0) return 'Dnes';
+  if (diff === 1) return 'Včera';
+  return x.toLocaleDateString('sk-SK', { weekday: 'long', day: 'numeric', month: 'long', year: x.getFullYear() === today.getFullYear() ? undefined : 'numeric' });
+}
+async function loadHistory() {
+  changesLog = await invoke('changes_list').catch(() => []);
+  renderHistory();
+}
+function renderHistory() {
+  const all = changesLog.map((c, i) => ({ ...c, i }));
+  // Only the newest change of an item can be undone; older ones are history.
+  const latest = new Map();
+  all.forEach((c) => { if (c.toggle && !c.undone) latest.set(c.id, c.i); });
+  const f = (HKINDS.find((k) => k[0] === hi.filter) || HKINDS[0])[2];
+  const list = all.filter(f).reverse();
+  const active = all.filter((c) => c.toggle && !c.undone && latest.get(c.id) === c.i);
+  $('#historyBody').innerHTML = `
+    <div class="stats">
+      <div class="card stat"><div class="k">Zmien celkom</div><div class="v num">${sk(all.length)}</div></div>
+      <div class="card stat"><div class="k">Platí teraz</div><div class="v num">${sk(active.length)}</div></div>
+      <div class="card stat"><div class="k">Vrátené</div><div class="v num">${sk(all.filter((c) => c.undone).length)}</div></div>
+      <div class="card stat"><div class="k">Ukončené procesy</div><div class="v num">${sk(all.filter((c) => !c.toggle).length)}</div></div>
+    </div>
+    <div class="chips">${HKINDS.map(([k, l, fn]) => { const n = all.filter(fn).length; return k !== 'all' && !n ? '' : `<button class="chip ${hi.filter === k ? 'on' : ''}" data-k="${k}">${l}<span class="n">${n}</span></button>`; }).join('')}</div>
+    ${list.length ? (() => {
+      let out = '', day = '';
+      for (const c of list) {
+        const dl = dayLabel(c.at * 1000);
+        if (dl !== day) { if (day) out += '</div>'; out += `<h3 class="cat">${esc(dl)}</h3><div class="card list">`; day = dl; }
+        const [txt, dot] = changeText(c);
+        const canUndo = c.toggle && !c.undone && latest.get(c.id) === c.i;
+        out += `<div class="arow hrow ${c.undone ? 'isoff' : ''}"><span class="dot ${c.undone ? '' : dot}"></span>
+          <div style="min-width:0"><div class="t">${esc(c.name)}${c.undone ? '<span class="badge off">Vrátené</span>' : ''}</div><div class="a">${esc(txt)}</div></div>
+          <span class="time num">${new Date(c.at * 1000).toLocaleTimeString('sk-SK', { hour: '2-digit', minute: '2-digit' })}</span>
+          ${canUndo ? `<button class="btn small" data-undo="${c.i}">Vrátiť</button>` : '<span></span>'}</div>`;
+      }
+      return out + '</div>';
+    })() : `<div class="card empty">${ICON.clock}Zatiaľ si cez WhatsInside nič nezmenil.</div>`}
+    <div class="note">História sa ukladá v priečinku %LOCALAPPDATA%\\WhatsInside. Ukončený proces sa vrátiť nedá, stačí appku znova spustiť.</div>`;
+  $$('#historyBody .chip').forEach((b) => (b.onclick = () => { hi.filter = b.dataset.k; renderHistory(); }));
+  $$('#historyBody [data-undo]').forEach((b) => (b.onclick = async () => {
+    b.disabled = true;
+    try { await invoke('changes_undo', { index: +b.dataset.undo }); toast('Vrátené'); }
+    catch (e) { toast(String(e), 'err'); }
+    startupItems = null; tweakStates = null; helperDirty = true;
+    loadHistory();
+  }));
+  $('#historyCount').textContent = '';
+}
+views.history = { enter() { loadHistory(); } };
+
 /* ========================================================== HELPER */
 let helperDirty = true, helperBusy = false;
 const POWER_SAVER = 'a1841308-3541-4fab-bc81-f71556f20b4a';
@@ -1001,14 +1289,17 @@ async function runHelper() {
       <div class="note" style="margin-top:6px">Disky, dočasné súbory, procesy, automatické spúšťanie a nastavenia. Chvíľu to trvá.</div><div class="bar indet" style="margin-top:14px"><i></i></div></div>`;
   }
   try {
-    const [facts, quick, snap, auto, drives, specs] = await Promise.all([
+    const [facts, quick, snap, auto, drives, sp, ds] = await Promise.all([
       invoke('system_facts'), invoke('quick_check'), invoke('procs_snapshot'),
       startupItems ? Promise.resolve(startupItems) : invoke('autostart_list'),
-      invoke('storage_drives'), invoke('pc_specs').catch(() => null),
+      invoke('storage_drives'), specs ? Promise.resolve(specs) : invoke('pc_specs').catch(() => null),
+      displays ? Promise.resolve(displays) : invoke('displays_list').catch(() => []),
     ]);
     startupItems = auto;
+    if (sp) specs = sp;
+    displays = ds;
     renderStartup();
-    renderHelper(buildAdvice({ facts, quick, snap, auto, drives, specs }));
+    renderHelper(buildAdvice({ facts, quick, snap, auto, drives, specs: sp, displays: ds }));
     helperDirty = false;
   } catch (e) {
     body.innerHTML = `<div class="card empty">${ICON.warn}Kontrola sa nepodarila: ${esc(e)}</div>`;
@@ -1017,8 +1308,12 @@ async function runHelper() {
 }
 
 /** Turns raw facts into plain-language advice. Every item says why and how. */
-function buildAdvice({ facts, quick, snap, auto, drives, specs }) {
+function buildAdvice({ facts, quick, snap, auto, drives, specs, displays }) {
   const tips = [], ok = [];
+  // 0. Hardware set up wrong (RAM profile, refresh rate, cable, driver)
+  const hw = hwChecks(specs, displays, facts);
+  hw.tips.forEach((t) => tips.push({ ...t, action: t.action || { label: 'Výkon', run: () => setView('perf') } }));
+  ok.push(...hw.ok);
   // 1. Disk space
   for (const d of drives.filter((d) => !d.removable && d.total)) {
     const pct = d.free / d.total;
@@ -1100,23 +1395,22 @@ function buildAdvice({ facts, quick, snap, auto, drives, specs }) {
   if (facts.power_guid === POWER_SAVER) {
     tips.push({ level: 'mid', icon: 'bolt', title: 'Máš zapnutý úsporný režim napájania',
       text: 'Procesor sa v ňom drží na nízkych taktoch, hry aj export videa sú pomalšie.',
-      steps: ['Nastavenia → Systém → Napájanie → Režim napájania → Vyvážený alebo Najlepší výkon.'] });
+      steps: ['Nastavenia → Systém → Napájanie → Režim napájania → Vyvážený alebo Najlepší výkon.'],
+      action: { label: 'Výkon', run: () => setView('perf') } });
   } else if (facts.power_name) ok.push(`Plán napájania: ${facts.power_name}`);
 
-  // 10. Game Mode
+  // 10. Game Mode, HAGS: one click in Výkon
   if (facts.game_mode === false) {
     tips.push({ level: 'low', icon: 'game', title: 'Herný režim je vypnutý',
       text: 'Pri hraní dáva hre prednosť pred aktualizáciami a appkami na pozadí. Na výkonnom PC je rozdiel malý, ale škodiť nebude.',
-      steps: ['Nastavenia → Hry → Herný režim → Zapnúť.'] });
+      action: { label: 'Zapnúť vo Výkone', run: () => setView('perf') } });
   } else if (facts.game_mode) ok.push('Herný režim je zapnutý');
-
-  // 11. HAGS for RTX 40/50 frame generation
   const gpuName = (specs?.gpus || []).map((g) => g.name).join(' ');
   const rtxFg = /RTX\s*(40|50)\d\d/i.test(gpuName);
   if (facts.hags === false && rtxFg) {
     tips.push({ level: 'mid', icon: 'gpu', title: 'Plánovanie GPU s hardvérovou akceleráciou je vypnuté',
       text: 'Tvoja grafika podporuje DLSS Frame Generation, ktoré bez neho nefunguje.',
-      steps: ['Nastavenia → Systém → Obrazovka → Grafika → Zmeniť predvolené nastavenia grafiky → zapnúť.', 'Potom reštartuj PC.'] });
+      action: { label: 'Zapnúť vo Výkone', run: () => setView('perf') } });
   } else if (facts.hags) ok.push('Plánovanie GPU s hardvérovou akceleráciou je zapnuté');
 
   const order = { high: 0, mid: 1, low: 2 };
@@ -1131,24 +1425,11 @@ function renderHelper(r) {
   $('#helperSub').textContent = r.tips.length
     ? `Našiel som ${r.tips.length} ${plural(r.tips.length, 'vec', 'veci', 'vecí')}, ktoré stoja za pozornosť${r.gain ? ` · môžeš uvoľniť ${bytes(r.gain)}` : ''}`
     : 'Všetko vyzerá dobre';
-  const level = { high: ['rec', 'Dôležité'], mid: ['amber', 'Odporúčam'], low: ['blue', 'Tip'] };
   $('#helperBody').innerHTML =
-    (r.tips.length ? `<div class="tips">${r.tips.map((t, i) => {
-      if (t.action) helperActions[i] = t.action.run;
-      return `<div class="card tipcard land lvl-${t.level}" style="--i:${i}">
-        <div class="ti">${ICON[t.icon] || ICON.check}</div>
-        <div class="tb">
-          <div class="tt"><span>${esc(t.title)}</span><span class="badge lv-${level[t.level][0]}">${level[t.level][1]}</span></div>
-          <div class="tx">${esc(t.text)}</div>
-          ${t.list ? `<div class="tl">${t.list.map(([a, b]) => `<div><span>${esc(a)}</span><span class="num">${esc(b)}</span></div>`).join('')}</div>` : ''}
-          ${t.steps ? `<ol class="ts">${t.steps.map((s) => `<li>${esc(s)}</li>`).join('')}</ol>` : ''}
-        </div>
-        ${t.action ? `<button class="btn small" data-a="${i}">${esc(t.action.label)}${ICON.arrow}</button>` : ''}
-      </div>`;
-    }).join('')}</div>` : `<div class="card empty">${ICON.check}Nenašiel som nič, čo by stálo za zmenu. Pekne udržiavaný počítač.</div>`) +
+    (r.tips.length ? tipCards(r.tips, helperActions) : `<div class="card empty">${ICON.check}Nenašiel som nič, čo by stálo za zmenu. Pekne udržiavaný počítač.</div>`) +
     (r.ok.length ? `<h2>V poriadku</h2><div class="card oklist">${r.ok.map((o) => `<div>${ICON.check}<span>${esc(o)}</span></div>`).join('')}</div>` : '') +
-    (r.scanned ? '' : '<div class="note">Tip: po skene disku v Úložisku nájdem aj cache DaVinci Resolve, staré súbory a hry, ktoré už nehráš.</div>') +
-    '<div class="note">Nič z toho za teba nemením. Ku každej veci máš kroky, ako to spraviť sám.</div>';
+    (r.scanned ? '' : '<div class="note">Tip: po skene disku v Úložisku nájdem aj cache strihových a grafických programov, staré súbory a hry, ktoré už nehráš.</div>') +
+    '<div class="note">Sám nič nemením. Kde sa dá, zmeníš to jedným klikom a v Histórii to vrátiš.</div>';
   $$('#helperBody [data-a]').forEach((b) => (b.onclick = () => helperActions[+b.dataset.a]?.()));
 }
 $('#helperRefresh').onclick = () => { helperDirty = true; $('#helperBody').innerHTML = ''; runHelper(); };
@@ -1532,6 +1813,30 @@ $('#cardText').onclick = async () => {
   try { await navigator.clipboard.writeText(cardText()); toast('Text skopírovaný, vlož ho do Discordu.'); } catch { toast('Nepodarilo sa skopírovať.', 'err'); }
 };
 
+
+/** Plain list of what's inside, for any PC. */
+function renderComponents() {
+  const sp = specs;
+  if (!sp) return;
+  const card = (k, icon, name, lines, i) => `<div class="card dev comp land" style="--i:${i}"><div class="k">${ICON[icon] || ''}${esc(k)}</div>
+    <div class="n">${esc(name || 'Nezistené')}</div>${lines.filter(Boolean).map((l) => `<div class="d">${l}</div>`).join('')}</div>`;
+  const mods = sp.ram_modules || [];
+  const ramName = mods.length ? `${sk(mods.reduce((a, m) => a + m.size_mb, 0) / 1024)} GB ${mods[0].kind || ''}`.trim() : sp.ram_total ? `${Math.round(sp.ram_total / 2 ** 30)} GB` : '';
+  const out = [
+    card('Procesor', 'cpu', sp.cpu.replace(/\((R|TM)\)/gi, '').replace(/\s{2,}/g, ' '), [sp.threads ? `${sp.threads} vlákien` : ''], 0),
+    ...(sp.gpus.length ? sp.gpus : [{ name: '' }]).map((g, i) => card('Grafika', 'gpu', g.name, [
+      g.vram ? `${Math.round(g.vram / 2 ** 30)} GB pamäte` : '',
+      g.driver_version ? `Ovládač ${esc(g.driver_version)}${g.driver_date ? ` · ${esc(g.driver_date.replace(/-/g, '. '))}` : ''}` : '',
+    ], 1 + i)),
+    card('Pamäť', 'ram', ramName, mods.map((m) => `<span class="num">${esc(m.slot || '?')}</span> · ${sk(m.size_mb / 1024)} GB · ${m.configured_speed ? `${sk(m.configured_speed)} MT/s` : ''}${m.rated_speed && m.rated_speed > m.configured_speed + 150 ? ` <span class="badge lv-amber">vie ${sk(m.rated_speed)}</span>` : ''}<br><span class="faint">${esc(prettyVendor(m.manufacturer || ''))} ${esc(m.part || '')}</span>`), 3),
+    card('Základná doska', 'board', sp.board, [], 4),
+    card('Úložisko', 'drive', sp.disks.length ? `${sp.disks.length} ${plural(sp.disks.length, 'disk', 'disky', 'diskov')}` : '', sp.disks.map(esc), 5),
+    card('Monitory', 'monitor', (displays || []).length ? `${displays.length} ${plural(displays.length, 'monitor', 'monitory', 'monitorov')}` : '', (displays || []).map((d) => `${d.width} × ${d.height} · ${d.hz} Hz${d.max_hz > d.hz + 5 ? ` <span class="badge lv-amber">vie ${d.max_hz} Hz</span>` : ''}<br><span class="faint">${esc(d.adapter)}${d.primary ? ' · hlavný' : ''}</span>`), 6),
+    card('Systém', 'os', sp.os, [], 7),
+  ];
+  $('#hwComp').innerHTML = out.join('');
+}
+
 views.hw = {
   async enter() {
     if (!hwLoaded) {
@@ -1545,10 +1850,12 @@ views.hw = {
       initHolo();
       $('#holo').classList.toggle('gold', card.finish === 'gold');
       $('#hwList').innerHTML = hwReport.devices.map((d, i) => `<div class="card dev land" style="--i:${i}">
-        <div class="k"><span class="dot ${d.supported ? 'mint' : ''}"></span>${esc(d.kind)}${d.supported ? ' · podporované' : ''}</div>
+        <div class="k"><span class="dot ${d.supported ? 'mint' : ''}"></span>${esc(d.kind)}${d.supported ? ' · rozpoznané' : ''}</div>
         <div class="n">${esc(d.name)}</div><div class="i">${esc(d.id)}</div><div class="d">${esc(d.note)}</div></div>`).join('') +
-        (hwReport.devices.length ? '' : '<div class="card empty">Nenašiel som RGB zariadenie, ktoré poznám.</div>') +
+        (hwReport.devices.length ? '' : '<div class="card empty">Nenašiel som zariadenie so svetlami, ktoré by som poznal.</div>') +
         hwReport.errors.map((e) => `<div class="card dev"><div class="k"><span class="dot rec"></span>Chyba</div><div class="d">${esc(e)}</div></div>`).join('');
+      if (!displays) displays = await invoke('displays_list').catch(() => []);
+      renderComponents();
     } else {
       requestAnimationFrame(() => { ['#cTheme', '#cLayout'].forEach(placeSeg); });
     }

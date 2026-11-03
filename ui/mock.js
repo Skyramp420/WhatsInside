@@ -47,15 +47,38 @@
     if (n.children.length) { n.size = 0; n.files = 0; n.children.forEach((c) => { sum(c); n.size += nodes[c].size; n.files += nodes[c].files; }); }
     n.children.sort((a, b) => nodes[b].size - nodes[a].size);
   })(0);
-  const view = (id, depth) => {
+  const view = (id, depth, skip) => {
     const n = nodes[id];
-    return { id, name: n.name, size: n.size, files: n.files, kind: n.kind, age_days: n.age, tag: n.tag, children: depth && n.kind === 'dir' ? n.children.map((c) => view(c, depth - 1)) : null };
+    let src = id; const via = [];
+    while (skip && depth && via.length < 4) {
+      const c = nodes[src], b = c.children[0] != null && nodes[c.children[0]];
+      if (!b || b.kind !== 'dir' || b.size * 5 < c.size * 4) break;
+      via.push(b.name); src = c.children[0];
+    }
+    const sn = nodes[src];
+    return { id, name: n.name, size: n.size, files: n.files, kind: n.kind, age_days: n.age, tag: n.tag, via, children: depth && sn.kind === 'dir' ? sn.children.map((c) => view(c, depth - 1, true)) : null };
   };
   const pathOf = (id) => { const p = []; let c = id; while (nodes[c].parent != null) { p.unshift(nodes[c].name); c = nodes[c].parent; } return 'C:' + (p.length ? '\\' + p.join('\\') : '\\'); };
 
 
   const A = (o) => ({ exe: null, app: null, about: null, advice: null, running: null, hidden: false, needs_admin: false, enabled: true, toggle: { t: 'approved', hive: 'HKCU', key: 'x', name: o.name }, ...o });
   const mockChanges = [];
+  const T = (key, title, about, effect, category, admin, restart, on) => ({ key, title, about, effect, category, admin, restart, on, available: true });
+  const mockTweaks = [
+    T('startup_delay', 'Spúšťať appky po prihlásení hneď', 'Windows po prihlásení čaká niekoľko sekúnd, kým spustí appky zo spúšťania. Na SSD je to čakanie zbytočné, plocha je skôr použiteľná.', 'big', 'responsive', false, '', false),
+    T('menu_delay', 'Rýchlejšie podponuky', 'Windows čaká 0,4 s, kým otvorí podponuku. Takto stačí 0,1 s, menu pôsobia svižnejšie.', 'small', 'responsive', false, 'logoff', false),
+    T('power_plan', 'Plán napájania Vysoký výkon', 'Procesor menej zaspáva a rýchlejšie reaguje. Na stolnom PC je rozdiel malý, ale merateľný v odozve. Na notebooku viac vybíja batériu.', 'small', 'responsive', false, '', false),
+    T('game_dvr', 'Vypnúť nahrávanie hier na pozadí', 'Xbox Game Bar vie stále nahrávať posledné minúty hry, čo zaberá grafiku. Ak klipy robíš inou appkou alebo vôbec, netreba to.', 'big', 'games', false, '', false),
+    T('game_mode', 'Herný režim', 'Počas hry Windows odkladá aktualizácie a dáva hre prednosť. Na dnešných PC neškodí, odporúčam mať zapnutý.', 'small', 'games', false, '', true),
+    T('hags', 'Hardvérové plánovanie GPU (HAGS)', 'Grafika si sama plánuje prácu, čo trochu znižuje oneskorenie. Na NVIDIA RTX 40 a novších ho potrebuje Frame Generation (DLSS 3 a 4).', 'small', 'games', true, 'reboot', false),
+    T('mouse_accel', 'Vypnúť zrýchlenie myši', 'Kurzor sa posunie o rovnaký kus podľa toho, kam myšou pohneš, nie podľa toho, ako rýchlo.', 'small', 'games', false, 'logoff', false),
+    T('background_apps', 'Zakázať appkám zo Storu beh na pozadí', 'Appky z Microsoft Store nebudú bežať na pozadí a ich upozornenia môžu chodiť neskôr.', 'small', 'background', false, '', false),
+    T('edge_boost', 'Edge sa neprednačítava a po zavretí nebeží', 'Edge sa spúšťa už so štartom Windowsu a beží aj po zavretí okna.', 'small', 'background', true, '', false),
+    T('tips', 'Vypnúť tipy a návrhy Windowsu', 'Žiadne „Tipy na používanie Windowsu“, návrhy v Štarte ani v Nastaveniach.', 'small', 'background', false, '', false),
+    T('transparency', 'Vypnúť priehľadnosť', 'Pomôže na slabších PC a notebookoch s integrovanou grafikou.', 'small', 'looks', false, '', false),
+    T('min_animate', 'Okná bez animácie pri minimalizovaní', 'Okná sa minimalizujú a obnovujú hneď.', 'small', 'looks', false, 'logoff', false),
+  ];
+
   const mockAuto = [
     A({ id: 'service:msi_central_service', kind: 'service', when: 'Po štarte Windowsu (oneskorene)', source: 'Služba MSI_Central_Service', name: 'MSI Central Service', command: 'C:\\Program Files (x86)\\MSI\\MSI Center\\MSI.CentralServer.exe', exe: 'msi.centralserver.exe', app: 'MSI Center / Mystic Light', verdict: 'rgb', about: 'Ovláda svetlá dosky a všetkého, čo je na nej zapojené (vetráky, AIO). Beží stále, aj keď ju práve nepoužívaš.', running: true, hidden: true, needs_admin: true, toggle: { t: 'service', name: 'MSI_Central_Service', on: 'delayed-auto' } }),
     A({ id: 'task:\\msi\\ledkeeper', kind: 'task', when: 'Pri prihlásení', source: 'Naplánovaná úloha \\MSI\\MSI Task Host - LEDKeeper', name: 'MSI Task Host - LEDKeeper', command: '"C:\\Program Files (x86)\\MSI\\MSI Center\\Mystic Light\\LEDKeeper2.exe"', exe: 'ledkeeper2.exe', app: 'MSI Center / Mystic Light', verdict: 'rgb', about: 'Ovláda svetlá dosky a všetkého, čo je na nej zapojené (vetráky, AIO).', hidden: true, needs_admin: true, toggle: { t: 'task', path: '\\MSI\\LEDKeeper' } }),
@@ -153,24 +176,30 @@
             { id: 0, path: 'C:\\Users\\Alex\\Downloads\\DaVinci_Resolve_19.1_Windows.zip', size: 3.2 * GB, age_days: 95, reason: 'installer' },
           ],
         };
-        case 'system_facts': return { power_guid: '381b4222-f694-41f0-9685-ff5bb260df2e', power_name: 'Vyvážený', game_mode: true, hags: false, hibernation: true, hiberfil_bytes: 25.4 * GB, os: 'Windows 11 Pro 24H2', build: 26100 };
+        case 'system_facts': return { power_guid: '381b4222-f694-41f0-9685-ff5bb260df2e', power_name: 'Vyvážený', game_mode: true, hags: false, hibernation: true, hiberfil_bytes: 25.4 * GB, os: 'Windows 11 Home 24H2', build: 26100, has_battery: false };
         case 'pc_specs': return {
-          cpu: 'Intel(R) Core(TM) i7-14700K', threads: 28,
-          gpus: [{ name: 'NVIDIA GeForce RTX 5080', vram: 16 * GB }],
-          board: 'MSI MAG Z790 TOMAHAWK WIFI (MS-7D91)', ram_total: 32 * GB,
+          cpu: 'AMD Ryzen 7 7800X3D 8-Core Processor', threads: 16,
+          gpus: [{ name: 'NVIDIA GeForce RTX 4070 SUPER', vram: 12 * GB, driver_date: '1-15-2026', driver_version: '32.0.15.9144' }],
+          board: 'ASUS TUF GAMING B650-PLUS WIFI', ram_total: 32 * GB,
           ram_modules: [
-            { slot: 'DIMMA2', size_mb: 16384, speed: 6400, configured_speed: 6000, kind: 'DDR5', manufacturer: 'G Skill Intl', part: 'F5-6400J3239G16G' },
-            { slot: 'DIMMB2', size_mb: 16384, speed: 6400, configured_speed: 6000, kind: 'DDR5', manufacturer: 'G Skill Intl', part: 'F5-6400J3239G16G' },
+            { slot: 'DIMM_A2', size_mb: 16384, speed: 4800, configured_speed: 4800, kind: 'DDR5', manufacturer: 'Kingston', part: 'KF560C36-16', rated_speed: 6000, channel: 'A' },
+            { slot: 'DIMM_B2', size_mb: 16384, speed: 4800, configured_speed: 4800, kind: 'DDR5', manufacturer: 'Kingston', part: 'KF560C36-16', rated_speed: 6000, channel: 'B' },
           ],
-          disks: ['Samsung SSD 990 PRO 2TB', 'WD_BLACK SN850X 4000GB'], os: 'Windows 11 Pro 24H2',
+          disks: ['Samsung SSD 990 PRO 2TB', 'Crucial P3 1TB'], os: 'Windows 11 Home 24H2',
         };
+        case 'displays_list': return [
+          { adapter: 'NVIDIA GeForce RTX 4070 SUPER', primary: true, width: 2560, height: 1440, hz: 60, max_hz: 165 },
+          { adapter: 'NVIDIA GeForce RTX 4070 SUPER', primary: false, width: 1920, height: 1080, hz: 60, max_hz: 60 },
+        ];
+        case 'tweaks_list': return mockTweaks.map((t) => ({ ...t }));
         case 'save_card': return 'C:\\Users\\Alex\\Pictures\\WhatsInside\\WhatsInside-PC-1760900000.png';
         case 'procs_snapshot': return procs();
         case 'autostart_list': return mockAuto.map((x) => ({ ...x }));
         case 'changes_list': return mockChanges;
-        case 'changes_undo': { const c = mockChanges[args.index]; c.undone = true; const it = mockAuto.find((x) => x.id === c.id); if (it) it.enabled = !c.enabled; return null; }
+        case 'changes_undo': { const c = mockChanges[args.index]; c.undone = true; const it = mockAuto.find((x) => x.id === c.id); if (it) it.enabled = !c.enabled; const tw = c.toggle && mockTweaks.find((x) => 'tweak:' + x.key === c.id); if (tw) tw.on = !c.enabled; return null; }
         case 'actions_apply': return args.actions.map((a) => {
-          if (a.op === 'kill') return { ok: true, error: null, elevated: false };
+          if (a.op === 'kill') { mockChanges.push({ at: Date.now() / 1000, id: 'kill:' + a.pid, name: a.exe, toggle: null, enabled: false, undone: false }); return { ok: true, error: null, elevated: false }; }
+          if (a.toggle.t === 'tweak') { const t = mockTweaks.find((x) => x.key === a.toggle.key); if (t) t.on = a.enable; }
           const it = mockAuto.find((x) => x.id === a.id); if (it) it.enabled = a.enable;
           mockChanges.push({ at: Date.now() / 1000, id: a.id, name: a.name, toggle: a.toggle, enabled: a.enable, undone: false });
           return { ok: true, error: null, elevated: a.toggle.t === 'service' };

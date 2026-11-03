@@ -29,10 +29,12 @@
   <nav class="nav" id="nav">
     <div class="ind"></div>
     <button data-view="helper" class="on"><svg viewBox="0 0 16 16"><path d="M8 1.6v1.6M13.2 3.8l-1.1 1.1M14.4 8.8h-1.6M2.8 3.8l1.1 1.1M1.6 8.8h1.6"/><path d="M5.6 11.2a3.6 3.6 0 1 1 4.8 0c-.5.5-.8 1-.8 1.6v.4H6.4v-.4c0-.6-.3-1.1-.8-1.6zM6.6 14.6h2.8"/></svg>Pomocník<span class="count" id="helperCount"></span></button>
+    <button data-view="perf"><svg viewBox="0 0 16 16"><path d="M2.5 11.5a5.5 5.5 0 1 1 11 0"/><path d="M8 11.5l2.8-3.6"/><path d="M8 11.5h.01"/></svg>Výkon<span class="count" id="perfCount"></span></button>
     <button data-view="storage"><svg viewBox="0 0 16 16"><rect x="1.8" y="3" width="12.4" height="10" rx="2"/><path d="M1.8 9.5h12.4M11.2 11.3h.01"/></svg>Úložisko</button>
     <button data-view="procs"><svg viewBox="0 0 16 16"><path d="M1.5 8.5h3l2-5 3 9 2-4h3"/></svg>Procesy</button>
     <button data-view="startup"><svg viewBox="0 0 16 16"><path d="M8 1.8v5.4"/><path d="M4.4 4.1a5.3 5.3 0 1 0 7.2 0"/></svg>Po spustení<span class="count" id="startupCount"></span></button>
     <button data-view="hw"><svg viewBox="0 0 16 16"><rect x="4" y="4" width="8" height="8" rx="1.6"/><path d="M6.5 1.5V4M9.5 1.5V4M6.5 12v2.5M9.5 12v2.5M1.5 6.5H4M1.5 9.5H4M12 6.5h2.5M12 9.5h2.5"/></svg>Hardvér</button>
+    <button data-view="history"><svg viewBox="0 0 16 16"><path d="M2.2 8a5.8 5.8 0 1 0 1.7-4.1"/><path d="M2 2.5v2.8h2.8"/><path d="M8 5v3.2l2.2 1.4"/></svg>História<span class="count" id="historyCount"></span></button>
   </nav>
   <div class="spacer"></div>
   <button class="update" id="updateBtn" hidden></button>
@@ -53,6 +55,15 @@
       <div class="actions"><button class="btn" id="helperRefresh"><svg viewBox="0 0 16 16"><path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9M13.5 2.5v3h-3"/></svg>Skontrolovať znova</button></div>
     </div>
     <div id="helperBody"></div>
+  </section>
+
+  <!-- Performance -->
+  <section class="view" id="v-perf">
+    <div class="head">
+      <div><h1>Výkon</h1><div class="sub">Čo naozaj pomôže odozve a hrám, bez placebo trikov</div></div>
+      <div class="actions"><button class="btn" id="perfRefresh"><svg viewBox="0 0 16 16"><path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9M13.5 2.5v3h-3"/></svg>Skontrolovať znova</button></div>
+    </div>
+    <div id="perfBody"></div>
   </section>
 
   <!-- Storage -->
@@ -100,6 +111,14 @@
     <div id="startupBody"></div>
   </section>
 
+  <!-- History -->
+  <section class="view" id="v-history">
+    <div class="head">
+      <div><h1>História zmien</h1><div class="sub">Všetko, čo WhatsInside kedy zmenil, a ako to vrátiť</div></div>
+    </div>
+    <div id="historyBody"></div>
+  </section>
+
   <!-- Hardware -->
   <section class="view" id="v-hw">
     <div class="head">
@@ -114,11 +133,12 @@
       <div class="card preview"><div class="holo" id="holo"><canvas id="pcCanvas"></canvas><i class="shine"></i><i class="sparkle"></i><i class="glare"></i></div></div>
       <div class="card editor" id="cardEditor"></div>
     </div>
-    <h2>Zistený hardvér</h2>
-    <div class="hw" id="hwList"></div>
-    <h2>Ovládanie RGB</h2>
+    <h2>Komponenty</h2>
+    <div class="hw" id="hwComp"></div>
+    <h2>Svetlá (RGB)</h2>
     <div class="card info"><svg viewBox="0 0 16 16"><path d="M8 1.8l1.8 3.9 4.2.5-3.1 2.9.8 4.2L8 11.2l-3.7 2.1.8-4.2L2 6.2l4.2-.5z"/></svg>
-      <p><b>Príde neskôr, poriadne.</b> Doska aj grafika sú podporované, ale GIF na displeji grafiky potrebuje program, ktorý beží stále. Chcem, aby to bolo pár MB, nie stovky. Zatiaľ ti aspoň ukážem, koľko ťa stoja tie súčasné.</p></div>
+      <p><b>Ovládanie svetiel dostane vlastnú záložku.</b> Zatiaľ ti ukážem, ktoré zariadenia so svetlami poznám a koľko pamäte stoja výrobcovské appky, ktoré ich ovládajú.</p></div>
+    <div class="hw" id="hwList" style="margin-top:12px"></div>
     <div class="card list" id="hwRgbApps" style="margin-top:12px"></div>
   </section>
 </main>

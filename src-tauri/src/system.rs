@@ -337,6 +337,8 @@ pub struct Facts {
     pub build: u32,
     /// Laptop on battery power matters for power-plan advice.
     pub has_battery: bool,
+    /// Memory integrity (Core isolation / HVCI) configured on.
+    pub hvci: Option<bool>,
 }
 
 /// Windows 11 still reports "Windows 10" in ProductName; the build tells the truth.
@@ -443,8 +445,13 @@ mod platform {
                 && ps.BatteryFlag != 128
                 && ps.BatteryFlag != 255
         };
+        let hvci = reg(
+            r"HKLM\SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\HypervisorEnforcedCodeIntegrity",
+            &["/v", "Enabled"],
+        );
         Facts {
             has_battery,
+            hvci: value(&hvci, "Enabled").and_then(reg_number).map(|v| v != 0),
             power_guid,
             power_name,
             // Missing value = Windows default, which is on.

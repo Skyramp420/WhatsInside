@@ -135,6 +135,17 @@ pub const TWEAKS: &[Tweak] = &[
         ops: &[reg(r"HKLM\SYSTEM\CurrentControlSet\Control\GraphicsDrivers", "HwSchMode", "REG_DWORD", Some("2"), Some("1"))],
     },
     Tweak {
+        key: "hvci_off",
+        title: "Vypnúť integritu pamäte (HVCI)",
+        about: "Bezpečnostná funkcia Windowsu, ktorá v hrách berie zhruba 5 % výkonu, na starších procesoroch (Ryzen 1000/2000, Intel 6. generácie a starší) aj viac. Vypnutím sa PC stáva o niečo zraniteľnejším voči škodlivým ovládačom. Niektoré anti-cheaty a firemné PC ju vyžadujú.",
+        effect: "big",
+        category: "games",
+        admin: true,
+        restart: "reboot",
+        only_if_exists: true,
+        ops: &[reg(r"HKLM\SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\HypervisorEnforcedCodeIntegrity", "Enabled", "REG_DWORD", Some("0"), Some("1"))],
+    },
+    Tweak {
         key: "mouse_accel",
         title: "Vypnúť zrýchlenie myši",
         about: "Kurzor sa posunie o rovnaký kus podľa toho, kam myšou pohneš, nie podľa toho, ako rýchlo. Väčšina hráčov to chce, je to ale vec zvyku.",

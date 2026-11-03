@@ -26,6 +26,25 @@ jobs:
         with:
           node-version: 22
 
+      # Intel PresentMon (MIT) for FPS measurement, embedded into the exe.
+      - name: Get PresentMon
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PRESENTMON_TAG: v2.6.0
+        run: |
+          New-Item -ItemType Directory -Force src-tauri/bin | Out-Null
+          $assets = gh release view $env:PRESENTMON_TAG --repo GameTechDev/PresentMon --json assets --jq '.assets[].name'
+          $assets
+          $name = $assets | Where-Object { $_ -match '^PresentMon-[\d\.]+-x64\.exe$' } | Select-Object -First 1
+          if (-not $name) { throw "PresentMon console exe not found in $env:PRESENTMON_TAG" }
+          gh release download $env:PRESENTMON_TAG --repo GameTechDev/PresentMon --pattern $name --dir src-tauri/bin
+          Move-Item "src-tauri/bin/$name" src-tauri/bin/PresentMon.exe -Force
+          $sig = Get-AuthenticodeSignature src-tauri/bin/PresentMon.exe
+          "Signature: $($sig.Status) $($sig.SignerCertificate.Subject)"
+          if ($sig.Status -ne 'Valid' -or $sig.SignerCertificate.Subject -notmatch 'Intel') { throw "PresentMon is not signed by Intel" }
+          (Get-FileHash src-tauri/bin/PresentMon.exe -Algorithm SHA256).Hash
+
       - name: Test
         working-directory: src-tauri
         run: cargo test --release

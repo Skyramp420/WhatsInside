@@ -33,6 +33,10 @@ pub enum Action {
         pid: u32,
         exe: String,
     },
+    /// Start an app again after a game (only an existing .exe, no arguments).
+    Launch {
+        path: String,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
@@ -168,7 +172,7 @@ pub fn apply(actions: Vec<Action>) -> Vec<Outcome> {
         match platform::apply_one(a) {
             Ok(()) => out[i].ok = true,
             Err(e) => {
-                // Kill can't be fixed with UAC for our purposes; the rest can.
+                // Only startup changes are worth a UAC retry.
                 if !elevated_now && matches!(a, Action::Startup { .. }) {
                     later.push(i);
                 } else {
@@ -220,6 +224,7 @@ pub fn apply(actions: Vec<Action>) -> Vec<Outcome> {
                 enabled: false,
                 undone: false,
             }),
+            Action::Launch { .. } => {}
         }
     }
     if log.len() > 300 {
@@ -327,7 +332,20 @@ mod platform {
                 Ok(())
             }
             Action::Kill { pid, exe } => kill(*pid, exe),
+            Action::Launch { path } => launch(path),
         }
+    }
+
+    fn launch(path: &str) -> Result<(), String> {
+        let p = std::path::Path::new(path);
+        if !p.is_file() || !path.to_lowercase().ends_with(".exe") || catalog::is_windows_path(path) {
+            return Err("Tento program sa nedá spustiť.".into());
+        }
+        std::process::Command::new(p)
+            .current_dir(p.parent().unwrap_or(p))
+            .spawn()
+            .map(|_| ())
+            .map_err(|e| e.to_string())
     }
 
     fn kill(pid: u32, exe: &str) -> Result<(), String> {

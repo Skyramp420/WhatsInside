@@ -9,8 +9,11 @@
 
 mod actions;
 mod autostart;
+mod bench;
 mod catalog;
 mod display;
+mod games;
+mod gpu;
 mod hw;
 mod known;
 mod procs;
@@ -26,6 +29,7 @@ use tauri::State;
 struct AppState {
     sampler: Mutex<procs::Sampler>,
     scanner: storage::Scanner,
+    bench: bench::Bench,
 }
 
 #[tauri::command]
@@ -61,6 +65,52 @@ async fn tweaks_list() -> Vec<tweaks::State> {
 #[tauri::command]
 async fn displays_list() -> Vec<display::Display> {
     display::list()
+}
+
+#[tauri::command]
+async fn bench_start(
+    state: State<'_, AppState>,
+    exe: String,
+    label: String,
+    seconds: u32,
+    delay: u32,
+) -> Result<(), String> {
+    state.bench.start(exe, label, seconds, delay)
+}
+
+#[tauri::command]
+async fn bench_status(state: State<'_, AppState>) -> Result<bench::Status, String> {
+    Ok(state.bench.status())
+}
+
+#[tauri::command]
+async fn bench_cancel(state: State<'_, AppState>) -> Result<(), String> {
+    state.bench.cancel()
+}
+
+#[tauri::command]
+async fn bench_list() -> Vec<bench::Run> {
+    bench::list()
+}
+
+#[tauri::command]
+async fn bench_delete(id: u64) {
+    bench::delete(id)
+}
+
+#[tauri::command]
+async fn gpu_sample() -> Option<gpu::Sample> {
+    gpu::sample()
+}
+
+#[tauri::command]
+async fn games_list() -> Vec<games::Game> {
+    games::list()
+}
+
+#[tauri::command]
+async fn shader_caches() -> Vec<games::ShaderCache> {
+    games::shader_caches()
 }
 
 #[tauri::command]
@@ -276,6 +326,14 @@ fn main() {
             update_install,
             tweaks_list,
             displays_list,
+            bench_start,
+            bench_status,
+            bench_cancel,
+            bench_list,
+            bench_delete,
+            gpu_sample,
+            games_list,
+            shader_caches,
         ])
         .run(tauri::generate_context!())
         .expect("WhatsInside sa nepodarilo spustiť");

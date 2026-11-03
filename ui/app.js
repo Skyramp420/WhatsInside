@@ -1072,6 +1072,23 @@ function hwChecks(specs, displays, facts) {
       steps: ['Prepoj kábel monitora do portu na grafickej karte. Je nižšie na zadnej strane PC, porty sú v rade vodorovne.', 'Porty hore pri USB patria základnej doske, tie nepoužívaj.'] });
   } else if (hasDgpu && (displays || []).length) ok.push('Monitor je zapojený do grafickej karty');
 
+  // Memory integrity (HVCI): costs more on CPUs without hardware support for it
+  if (facts?.hvci) {
+    const old = /ryzen\s*[3579]\s*[12]\d{3}|i[3579]-[2-6]\d{3}\b/i.test(specs.cpu || '');
+    tips.push({ level: old ? 'high' : 'low', icon: 'warn', key: 'hvci', title: 'Integrita pamäte (HVCI) je zapnutá',
+      text: old ? 'Tvoj procesor nemá hardvérovú podporu, ktorú táto funkcia využíva, takže ju Windows emuluje. V hrách to stojí viac ako na nových PC, často 10 % a viac. Je to bezpečnostná funkcia, takže vypnutie je výmena bezpečnosti za výkon.'
+        : 'Bezpečnostná funkcia Windowsu, ktorá v hrách berie zhruba 5 % výkonu. Je to výmena bezpečnosti za výkon, rozhodni sa sám.',
+      steps: ['Vypneš ju vo Výkone v Úpravách systému (Hry), alebo v Zabezpečení Windows → Zabezpečenie zariadenia → Izolácia jadra.', 'Prejaví sa po reštarte.'] });
+  }
+
+  // Graphics card overheating during the last FPS measurement
+  const hotRun = [...(gm.runs || [])].reverse().find((r) => r.gpu);
+  if (hotRun && (hotRun.gpu.thermal_share > 0.05 || hotRun.gpu.temp_max >= 87)) {
+    tips.push({ level: 'high', icon: 'gpu', key: 'thermal', title: `Grafika sa v hre prehrieva (${sk(hotRun.gpu.temp_max, 0)} °C)`,
+      text: `Pri meraní ${hotRun.exe} sa ${sk(hotRun.gpu.thermal_share * 100, 0)} % času spomaľovala kvôli teplote. To sú FPS, ktoré ti berie prach alebo stará pasta, nie výkon karty.`,
+      steps: ['Vyčisti prach z chladiča grafiky, filtrov a ventilátorov skrinky.', 'Skontroluj, či sa točia všetky ventilátory.', 'Pri karte staršej ako 3–4 roky pomôže výmena teplovodivej pasty.'] });
+  }
+
   // Old GPU driver
   for (const g of (specs.gpus || []).filter((g) => DGPU.test(g.name))) {
     const mo = monthsSince(g.driver_date);
@@ -1204,6 +1221,320 @@ async function applyTweaks(list, enable) {
 
 $('#perfRefresh').onclick = () => { tweakStates = null; loadPerf(); };
 views.perf = { enter() { loadPerf(); } };
+
+/* ========================================================== GAMES */
+// What each game supports. Only things we're sure about; unknown = no claim.
+const GAME_DB = [
+  { m: /cyberpunk 2077/i, dlss: 1, fg: 1, fsr: 1, reflex: 1, tips: ['Hustota davu na Nízku uľaví procesoru, pomôže hlavne v meste.', 'Na RTX 2060 a 3060 ray tracing radšej vypni.'] },
+  { m: /counter-strike 2/i, reflex: 1, cpu: 1, tips: ['FPS tu rozhoduje procesor a rýchlosť RAM, XMP má veľký vplyv.', 'FSR v CS2 radšej nechaj vypnuté, rozmazáva obraz.', 'Nižšie tiene a MSAA zlepšia 1 % lows.'] },
+  { m: /^valorant$/i, reflex: 1, cpu: 1, tips: ['Hra je ľahká na grafiku, rozhoduje procesor a RAM.', 'Limit FPS nastav nad frekvenciu monitora alebo ho vypni.'] },
+  { m: /league of legends/i, cpu: 1, tips: ['Nastav limit FPS na frekvenciu monitora, grafika sa zbytočne nezahrieva.'] },
+  { m: /^fortnite$/i, dlss: 1, reflex: 1, tips: ['Na slabšom PC prepni Režim vykresľovania na Výkon (Performance), FPS stúpnu výrazne.', { t: 'Bez RTX karty použi TSR v nastaveniach rozlíšenia.', nortx: 1 }] },
+  { m: /apex legends/i, reflex: 1, tips: ['Adaptívne rozlíšenie s cieľovým FPS drží plynulosť v boji.'] },
+  { m: /call of duty|warzone/i, dlss: 1, fg: 1, fsr: 1, reflex: 1, tips: [] },
+  { m: /baldur'?s gate 3/i, dlss: 1, fsr: 1, cpu: 1, tips: ['V 3. akte (mesto) brzdí procesor, tam pomôže skôr XMP ako DLSS.'] },
+  { m: /elden ring/i, tips: ['Hra má pevný limit 60 FPS. Ak ich dosahuješ, ďalšie úpravy FPS nepridajú.'] },
+  { m: /minecraft/i, cpu: 1, tips: ['Nainštaluj Sodium (Fabric) alebo Embeddium (Forge), FPS stúpnu niekoľkonásobne.', 'Dohľadnosť (render distance) najviac zaťažuje procesor.'] },
+  { m: /red dead redemption 2/i, dlss: 1, fsr: 1, tips: ['Fyzika vody a volumetrické efekty sú najnáročnejšie, stiahni ich ako prvé.'] },
+  { m: /hogwarts legacy/i, dlss: 1, fg: 1, fsr: 1, tips: [] },
+  { m: /black myth/i, dlss: 1, fg: 1, fsr: 1, tips: [] },
+  { m: /alan wake 2/i, dlss: 1, fg: 1, fsr: 1, tips: [] },
+  { m: /forza horizon 5/i, dlss: 1, fsr: 1, tips: [] },
+  { m: /diablo iv/i, dlss: 1, fg: 1, fsr: 1, tips: [] },
+  { m: /marvel rivals/i, dlss: 1, fg: 1, fsr: 1, reflex: 1, tips: [] },
+  { m: /witcher 3/i, dlss: 1, fg: 1, fsr: 1, tips: [] },
+  { m: /starfield/i, dlss: 1, fg: 1, fsr: 1, cpu: 1, tips: ['V mestách brzdí procesor, pomôže XMP.'] },
+  { m: /^the finals$/i, dlss: 1, fg: 1, reflex: 1, tips: [] },
+  { m: /palworld/i, dlss: 1, fsr: 1, tips: [] },
+  { m: /grand theft auto v enhanced/i, dlss: 1, fsr: 1, tips: [] },
+  { m: /rainbow six/i, dlss: 1, reflex: 1, tips: [] },
+  { m: /world of warcraft/i, cpu: 1, tips: ['V meste a v raide brzdí procesor. Pomôže XMP a nižšia dohľadnosť.', 'Render Scale pod 100 % uľaví grafike.'] },
+  { m: /overwatch/i, reflex: 1, tips: [] },
+  { m: /helldivers 2/i, cpu: 1, tips: ['Hra je náročná na procesor, pomôže XMP a menej appiek na pozadí.'] },
+  { m: /escape from tarkov/i, dlss: 1, fsr: 1, cpu: 1, tips: ['Na veľkých mapách brzdí procesor, XMP tu robí veľký rozdiel.'] },
+  { m: /dota 2/i, cpu: 1, tips: [] },
+];
+
+function gpuCaps() {
+  const name = (specs?.gpus || []).map((g) => g.name).find((n) => DGPU.test(n)) || (specs?.gpus || [])[0]?.name || '';
+  const rtx = /RTX\s*(\d{2})/i.exec(name);
+  const gen = rtx ? +rtx[1] : 0;
+  return { name, nvidia: /nvidia|geforce/i.test(name), rtx: !!rtx, fg: gen >= 40, amd: /radeon/i.test(name) };
+}
+
+function gameAdvice(g, caps) {
+  const d = GAME_DB.find((x) => x.m.test(g.name));
+  if (!d) return null;
+  const chips = [], lines = [];
+  if (d.dlss && caps.rtx) {
+    chips.push(['DLSS', 'needed']);
+    lines.push(`Zapni DLSS na Kvalitu alebo Vyvážené. Na ${caps.name.replace(/NVIDIA |GeForce /g, '')} to býva +30 až 50 % FPS.`);
+    if (d.fg && caps.fg) { chips.push(['Frame Generation', 'needed']); lines.push('Tvoja karta zvládne aj Frame Generation, plynulosť ešte stúpne (oneskorenie trochu tiež).'); }
+  } else if (d.fsr) {
+    chips.push(['FSR', 'needed']);
+    lines.push(caps.rtx ? 'Zapni FSR alebo XeSS na Kvalitu.' : 'Tvoja karta nemá DLSS, zapni FSR alebo XeSS na Kvalitu.');
+  } else if (d.dlss && !caps.rtx) {
+    lines.push('Hra má DLSS, ale tvoja karta ho nepodporuje (potrebuje RTX).');
+  }
+  if (d.reflex && caps.nvidia) { chips.push(['Reflex', 'peripheral']); lines.push('NVIDIA Reflex zapni (Zapnuté), zníži oneskorenie.'); }
+  if (d.cpu) chips.push(['Náročná na procesor', 'optional']);
+  lines.push(...d.tips.filter((t) => typeof t === 'string' || (t.nortx && !caps.rtx)).map((t) => (typeof t === 'string' ? t : t.t)));
+  return { chips, lines };
+}
+
+const gm = { games: null, runs: [], status: null, timer: null, gpuTimer: null, gpu: null, caches: null, sel: [], seconds: 60 };
+
+async function loadGames() {
+  if (!specs) specs = await invoke('pc_specs').catch(() => null);
+  const [games, runs, caches] = await Promise.all([invoke('games_list').catch(() => []), invoke('bench_list').catch(() => []), invoke('shader_caches').catch(() => [])]);
+  gm.games = games; gm.runs = runs; gm.caches = caches;
+  if (!pr.snap) pr.snap = await invoke('procs_snapshot').catch(() => null);
+  renderGames();
+  pollBench();
+  pollGpu();
+}
+
+/** Running processes that look like games (installed game folders first). */
+function gameCandidates() {
+  const dirs = (gm.games || []).map((g) => g.dir.toLowerCase());
+  const looks = /\\(steamapps\\common|epic games|xboxgames|riot games|gog galaxy\\games|ubisoft game launcher\\games|ea games|battle\.net|world of warcraft|call of duty|overwatch|diablo|minecraft)\\/i;
+  const out = [];
+  for (const g of pr.snap?.groups || []) {
+    if (g.verdict === 'system') continue;
+    for (const p of g.procs) {
+      const path = (p.path || '').toLowerCase();
+      const known = dirs.some((d) => d && path.startsWith(d)) || looks.test(path) || /javaw?\.exe$/i.test(p.exe) && /minecraft/i.test(path);
+      out.push({ exe: p.exe, name: g.name, ram: p.ram || 0, game: known });
+    }
+  }
+  const seen = new Set();
+  return out.filter((c) => !seen.has(c.exe.toLowerCase()) && seen.add(c.exe.toLowerCase()))
+    .sort((a, b) => b.game - a.game || b.ram - a.ram);
+}
+
+const BOUND = {
+  gpu: ['Brzdí grafika', 'lv-blue', 'Grafika je vyťažená naplno. Pomôže DLSS/FSR, nižšie rozlíšenie alebo menej náročné tiene a efekty. Rýchlejšia RAM tu veľa nespraví.'],
+  cpu: ['Brzdí procesor', 'lv-amber', 'Grafika čaká na procesor. Pomôže XMP/EXPO, menej appiek na pozadí (Idem hrať) a nižšia dohľadnosť či hustota davu. DLSS tu FPS nezdvihne.'],
+  limit: ['Drží ho limit', 'lv-blue', 'Procesor aj grafika majú rezervu, FPS drží limit (V-Sync, limit v hre alebo v ovládači). Ak chceš viac, uvoľni limit.'],
+  mixed: ['Vyvážené', 'lv-blue', 'Procesor aj grafika sú vyťažené podobne.'],
+};
+
+function runCard(r, base) {
+  const d = (a, b) => (b ? `<span class="delta ${a >= b ? 'up' : 'down'}">${a >= b ? '+' : ''}${sk(((a - b) / b) * 100, 0)} %</span>` : '');
+  const b = BOUND[r.bound];
+  const g = r.gpu;
+  const hot = g && (g.thermal_share > 0.05 || g.temp_max >= 87);
+  return `<div class="card run land">
+    <div class="rh"><div><b>${esc(r.label || r.exe)}</b><span>${esc(r.exe)} · ${new Date(r.id).toLocaleString('sk-SK', { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' })} · ${r.seconds} s</span></div>${b ? `<span class="badge ${b[1]}">${b[0]}</span>` : ''}</div>
+    <div class="nums">
+      <div><span class="k">Priemer</span><span class="v num">${sk(r.avg_fps, 0)}<small>FPS</small></span>${base ? d(r.avg_fps, base.avg_fps) : ''}</div>
+      <div><span class="k">1 % low</span><span class="v num">${sk(r.low1, 0)}<small>FPS</small></span>${base ? d(r.low1, base.low1) : ''}</div>
+      <div><span class="k">0,1 % low</span><span class="v num">${sk(r.low01, 0)}<small>FPS</small></span>${base ? d(r.low01, base.low01) : ''}</div>
+      <div><span class="k">Čas snímku</span><span class="v num">${sk(r.frametime, 1)}<small>ms</small></span></div>
+    </div>
+    ${b ? `<p class="why">${b[2]}</p>` : ''}
+    ${g ? `<div class="gline ${hot ? 'hot' : ''}">${ICON.gpu}<span>${esc(g.name)}: max ${sk(g.temp_max, 0)} °C, priemer ${sk(g.clock_avg, 0)} MHz, záťaž ${sk(g.load_avg, 0)} %${g.thermal_share > 0.05 ? ` · <b>spomaľovala sa kvôli teplote ${sk(g.thermal_share * 100, 0)} % času</b>` : ''}</span></div>` : ''}
+    ${hot ? '<p class="why warn">Grafika sa prehrieva a sama si znižuje takty. Vyčisti prach z chladiča a filtrov, skontroluj otáčky ventilátorov. Pri staršej karte pomôže aj výmena teplovodivej pasty.</p>' : ''}
+  </div>`;
+}
+
+function renderGames() {
+  const caps = gpuCaps();
+  const cands = gameCandidates();
+  const st = gm.status || { phase: 'idle' };
+  const busy = st.phase === 'starting' || st.phase === 'running';
+  const byExe = {};
+  gm.runs.forEach((r) => (byExe[r.exe] = byExe[r.exe] || []).push(r));
+  const latest = gm.runs.at(-1);
+  const prevSame = latest ? (byExe[latest.exe] || []).slice(-2, -1)[0] : null;
+  const matched = (gm.games || []).map((g) => ({ g, a: gameAdvice(g, caps) }));
+  const known = matched.filter((x) => x.a), other = matched.filter((x) => !x.a);
+  const nvCache = (gm.caches || []).filter((c) => c.label.startsWith('NVIDIA')).reduce((a, c) => a + c.size, 0);
+
+  $('#gamesBody').innerHTML = `
+    <h2>Zmerať FPS</h2>
+    <div class="hint">Zmeraj hru, zmeň jednu vec a zmeraj znova na rovnakom mieste. Uvidíš reálny rozdiel, nie sľuby.</div>
+    <div class="card bench">
+      ${busy ? benchProgress(st) : `
+      <div class="brow">
+        <label class="field grow"><span>Hra (musí byť spustená)</span>
+          <select id="bGame">${cands.length ? cands.map((c, i) => `<option value="${esc(c.exe)}" ${i === 0 ? 'selected' : ''}>${c.game ? '🎮 ' : ''}${esc(c.name)} · ${esc(c.exe)}</option>`).join('') : '<option value="">Nebeží žiadna appka</option>'}</select></label>
+        <button class="btn icon" id="bReload" title="Obnoviť zoznam"><svg viewBox="0 0 16 16"><path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9M13.5 2.5v3h-3"/></svg></button>
+        <label class="field"><span>Popis</span><input id="bLabel" value="${esc(localStorageGet('benchLabel') || 'Pred zmenou')}" maxlength="60"></label>
+        <div class="field"><span>Dĺžka</span><div class="seg" id="bLen"><div class="knob"></div>${[30, 60, 90].map((s) => `<button data-k="${s}" class="${gm.seconds === s ? 'on' : ''}">${s} s</button>`).join('')}</div></div>
+        <button class="btn primary" id="bGo" ${cands.length ? '' : 'disabled'}>Zmerať</button>
+      </div>
+      <p class="mnote">${SHIELD}Po kliknutí potvrď okno UAC. Potom máš 10 sekúnd na prepnutie do hry, hraj normálne, ja meriam. Meranie potrebuje admin práva, lebo číta údaje priamo z Windowsu.</p>
+      ${st.phase === 'error' ? `<p class="why warn">${esc(st.error)}</p>` : ''}`}
+    </div>
+    ${latest ? `<h3 class="cat">Posledné meranie${prevSame ? ' v porovnaní s predchádzajúcim' : ''}</h3>${runCard(latest, prevSame)}` : ''}
+    ${gm.runs.length > 1 ? `<details class="card runs"><summary>Všetky merania (${gm.runs.length})</summary><div class="rlist">${[...gm.runs].reverse().map((r) => `<div class="rrow"><b>${esc(r.label || r.exe)}</b><span>${esc(r.exe)}</span><span class="num">${sk(r.avg_fps, 0)} / ${sk(r.low1, 0)} FPS</span><span>${BOUND[r.bound]?.[0] || ''}</span><span>${new Date(r.id).toLocaleDateString('sk-SK')}</span><button class="btn icon small" data-del="${r.id}" title="Zmazať">${ICON.x}</button></div>`).join('')}</div></details>` : ''}
+
+    <h2>Grafika naživo</h2>
+    <div class="card gpulive" id="gpuLive">${gpuLive()}</div>
+
+    <h2>Idem hrať</h2>
+    <div class="hint">Pred hrou zavri, čo netreba. Pomôže hlavne 1 % lows a hrám, ktoré brzdí procesor. Po hre to jedným klikom spustíš späť.</div>
+    <div class="card list" id="playList">${playList()}</div>
+
+    <h2>Tvoje hry</h2>
+    <div class="hint">Našiel som ${sk((gm.games || []).length)} ${plural((gm.games || []).length, 'hru', 'hry', 'hier')} (Steam, Epic, Riot, Battle.net, Minecraft). Odporúčania sú podľa tvojej grafiky${caps.name ? ` (${esc(caps.name)})` : ''}.</div>
+    ${known.length ? `<div class="gamegrid">${known.map(({ g, a }, i) => `<div class="card game land" style="--i:${i}">
+      <div class="gt">${ICON.game}<div><b>${esc(g.name)}</b><span>${esc(g.source)}${g.size ? ` · ${bytes(g.size)}` : ''}</span></div></div>
+      <div class="chips2">${a.chips.map(([t, c]) => `<span class="badge ${c}">${t}</span>`).join('')}</div>
+      <ul>${a.lines.map((l) => `<li>${esc(l)}</li>`).join('')}</ul></div>`).join('')}</div>` : ''}
+    ${other.length ? `<div class="card others"><b>Ďalšie hry</b><span>${other.map(({ g }) => esc(g.name)).join(', ')}</span><p>Pre tieto nemám konkrétne tipy. Všeobecne: ak hra má DLSS${caps.rtx ? '' : ' (tvoja karta nie)'}, FSR alebo XeSS, zapni ho na Kvalitu. A zmeraj, či hru brzdí procesor alebo grafika.</p></div>` : ''}
+    ${!(gm.games || []).length ? `<div class="card empty">${ICON.game}Nenašiel som nainštalované hry.</div>` : ''}
+
+    <h2>Shader cache</h2>
+    <div class="card list">${(gm.caches || []).length ? gm.caches.map((c) => `<div class="cache"><div><div class="t">${esc(c.label)}</div><div class="h">${esc(c.path)}</div></div><span class="num">${bytes(c.size)}</span></div>`).join('') : '<div class="empty">Shader cache som nenašiel.</div>'}</div>
+    ${nvCache > 3.5 * 2 ** 30 ? `<div class="card tipcard lvl-mid" style="margin-top:12px"><div class="ti">${ICON.gpu}</div><div class="tb"><div class="tt"><span>Shader cache NVIDIA je takmer plná</span></div>
+      <div class="tx">Keď sa naplní, ovládač zahadzuje staré shadery a hra ich prekladá znova. To je trhanie pri načítaní nových miest. Pri mnohých ovládačoch je predvolený limit 4 GB.</div>
+      <ol class="ts"><li>Pravý klik na plochu → NVIDIA Ovládací panel → Spravovať 3D nastavenia.</li><li>Veľkosť vyrovnávacej pamäte shaderov → 10 GB alebo Neobmedzené.</li></ol></div></div>` : nvCache ? '<div class="note">Shader cache NVIDIA má ešte miesto. Ak by sa blížila 4 GB, poradím, ako zvýšiť limit.</div>' : ''}
+  `;
+
+  if (!busy) {
+    seg($('#bLen'), (k) => { gm.seconds = +k; });
+    $('#bReload').onclick = async () => { pr.snap = await invoke('procs_snapshot'); gm.games = await invoke('games_list'); renderGames(); };
+    $('#bGo').onclick = startBench;
+    requestAnimationFrame(() => placeSeg('#bLen'));
+  }
+  $$('#gamesBody [data-del]').forEach((b) => (b.onclick = async (e) => { e.preventDefault(); await invoke('bench_delete', { id: +b.dataset.del }); gm.runs = await invoke('bench_list'); renderGames(); }));
+  bindPlay();
+}
+
+function localStorageGet(k) { try { return localStorage.getItem(k); } catch { return null; } }
+function localStorageSet(k, v) { try { localStorage.setItem(k, v); } catch {} }
+
+function benchProgress(st) {
+  if (st.phase === 'starting') return `<div class="bprog"><span class="dot amber pulse"></span><div><b>Potvrď okno UAC</b><span>Spúšťam meranie pre ${esc(st.exe)}.</span></div></div>`;
+  const el = (Date.now() - st.started_ms) / 1000;
+  const wait = Math.max(0, st.delay - el);
+  const left = Math.max(0, st.delay + st.seconds - el);
+  const pct = wait > 0 ? 0 : Math.min(100, ((el - st.delay) / st.seconds) * 100);
+  const live = st.live ? ` · grafika ${sk(st.live.temp, 0)} °C, ${sk(st.live.load, 0)} %` : '';
+  return `<div class="bprog"><span class="dot ${wait > 0 ? 'amber' : 'rec'} pulse"></span><div>
+    <b>${wait > 0 ? `Prepni sa do hry, začínam o ${Math.ceil(wait)} s` : `Meriam ${esc(st.exe)}, ešte ${Math.ceil(left)} s`}</b>
+    <span>Hraj normálne, ideálne stále rovnaký úsek, aby sa merania dali porovnať${live}.</span></div>
+    <button class="btn small" id="bStop">Zastaviť</button></div><div class="bar"><i style="width:${pct}%"></i></div>`;
+}
+
+async function startBench() {
+  const exe = $('#bGame').value;
+  if (!exe) return;
+  const label = $('#bLabel').value.trim() || 'Meranie';
+  localStorageSet('benchLabel', label === 'Pred zmenou' ? 'Po zmene' : label);
+  try { await invoke('bench_start', { exe, label, seconds: gm.seconds, delay: 10 }); }
+  catch (e) { toast(String(e), 'err'); return; }
+  pollBench();
+}
+
+async function pollBench() {
+  clearTimeout(gm.timer);
+  const prev = gm.status?.phase;
+  gm.status = await invoke('bench_status').catch(() => null);
+  const ph = gm.status?.phase;
+  if (ph === 'done' && prev && prev !== 'done' && prev !== 'idle') {
+    gm.runs = await invoke('bench_list');
+    toast(`Hotovo: ${sk(gm.status.result.avg_fps, 0)} FPS v priemere`);
+    renderGames();
+  } else if (ph === 'starting' || ph === 'running') {
+    const box = $('#gamesBody .bench');
+    if (box && $('.bprog', box)) { box.innerHTML = benchProgress(gm.status); }
+    else renderGames();
+    const stop = $('#bStop');
+    if (stop) stop.onclick = async () => { try { await invoke('bench_cancel'); } catch (e) { toast(String(e), 'err'); } };
+  } else if (ph === 'error' && prev !== 'error' && prev) {
+    renderGames();
+  }
+  if (current === 'games' && (ph === 'starting' || ph === 'running')) gm.timer = setTimeout(pollBench, 1000);
+}
+
+function gpuLive() {
+  const g = gm.gpu;
+  if (g === undefined || g === null && gm.gpuChecked !== true) return '<div class="empty">Čítam grafiku…</div>';
+  if (!g) return `<div class="empty">${ICON.gpu}Teploty a takty grafiky zatiaľ viem čítať len pri kartách NVIDIA.</div>`;
+  const bar = (v, max, cls = '') => `<div class="bar ${cls}"><i style="width:${Math.min(100, (v / max) * 100)}%"></i></div>`;
+  const tCls = g.temp >= 85 ? 'rec' : g.temp >= 78 ? 'amber' : 'mint';
+  return `<div class="gl-name"><b>${esc(g.name)}</b>${g.thermal ? '<span class="badge lv-rec">Spomaľuje kvôli teplote</span>' : ''}${g.power_cap ? '<span class="badge maybe">Na limite príkonu (pri záťaži normálne)</span>' : ''}</div>
+    <div class="gl">
+      <div><span class="k">Teplota</span><span class="v num">${sk(g.temp, 0)}<small>°C</small></span>${bar(g.temp, 100, tCls)}</div>
+      <div><span class="k">Takt</span><span class="v num">${sk(g.clock, 0)}<small>/ ${sk(g.clock_max, 0)} MHz</small></span>${bar(g.clock, g.clock_max || 1)}</div>
+      <div><span class="k">Záťaž</span><span class="v num">${sk(g.load, 0)}<small>%</small></span>${bar(g.load, 100)}</div>
+      <div><span class="k">Príkon</span><span class="v num">${sk(g.power, 0)}<small>/ ${sk(g.power_limit, 0)} W</small></span>${bar(g.power, g.power_limit || 1)}</div>
+      ${g.fan != null ? `<div><span class="k">Ventilátor</span><span class="v num">${sk(g.fan, 0)}<small>%</small></span>${bar(g.fan, 100)}</div>` : ''}
+    </div>
+    <p class="mnote">Bez hry je grafika v kľude, takže hodnoty sú nízke. Prehrievanie uvidíš počas hrania alebo v meraní FPS.</p>`;
+}
+
+async function pollGpu() {
+  clearTimeout(gm.gpuTimer);
+  gm.gpu = await invoke('gpu_sample').catch(() => null);
+  gm.gpuChecked = true;
+  const box = $('#gpuLive');
+  if (box) box.innerHTML = gpuLive();
+  if (current === 'games' && !document.hidden && gm.gpu) gm.gpuTimer = setTimeout(pollGpu, 2000);
+}
+
+/* ---- Idem hrať: close chosen background apps, start them again afterwards */
+function playCandidates() {
+  const games = new Set(gameCandidates().filter((c) => c.game).map((c) => c.exe.toLowerCase()));
+  return (pr.snap?.groups || []).filter((g) => !g.procs.some((p) => games.has(p.exe.toLowerCase())))
+    .filter((g) => (g.verdict === 'optional' || g.verdict === 'rgb' || g.verdict === 'unknown' || g.verdict === 'peripheral') && g.key !== 'WhatsInside' && g.ram > 30 * 2 ** 20)
+    .sort((a, b) => b.ram - a.ram).slice(0, 14);
+}
+function playList() {
+  const closed = JSON.parse(localStorageGet('playClosed') || '[]');
+  const list = playCandidates();
+  const saved = new Set(JSON.parse(localStorageGet('playSel') || '[]'));
+  const first = !localStorageGet('playSel');
+  return `${closed.length ? `<div class="recbar inner"><div>${ICON.game}<div><b>Hra skončila?</b><span>Zavrel som: ${closed.map((c) => esc(c.name)).join(', ')}.</span></div></div><button class="btn primary" id="playBack">Spustiť späť</button></div>` : ''}
+    ${list.length ? list.map((g) => {
+      const on = first ? g.verdict === 'optional' : saved.has(g.key);
+      return `<label class="arow prow2"><input type="checkbox" data-k="${esc(g.key)}" ${on ? 'checked' : ''}>
+        <div style="min-width:0"><div class="t">${esc(g.name)}${badge(g.verdict)}</div>${g.verdict === 'rgb' ? '<div class="a">Po zatvorení sa svetlá môžu prepnúť na predvolené.</div>' : ''}</div>
+        <span class="num">${bytes(g.ram)}</span></label>`;
+    }).join('') + `<div class="pact"><span id="playSum"></span><button class="btn primary" id="playGo">Zatvoriť vybrané</button></div>` : '<div class="empty">Na pozadí nebeží nič, čo by stálo za zatvorenie.</div>'}`;
+}
+function bindPlay() {
+  const box = $('#playList');
+  if (!box) return;
+  const sum = () => {
+    const sel = $$('input[type=checkbox]', box).filter((c) => c.checked).map((c) => c.dataset.k);
+    const ram = playCandidates().filter((g) => sel.includes(g.key)).reduce((a, g) => a + g.ram, 0);
+    if ($('#playSum')) $('#playSum').textContent = sel.length ? `Uvoľní ${bytes(ram)} RAM` : '';
+    if ($('#playGo')) $('#playGo').disabled = !sel.length;
+    localStorageSet('playSel', JSON.stringify(sel));
+  };
+  $$('input[type=checkbox]', box).forEach((c) => (c.onchange = sum));
+  sum();
+  if ($('#playGo')) $('#playGo').onclick = async () => {
+    const sel = $$('input[type=checkbox]', box).filter((c) => c.checked).map((c) => c.dataset.k);
+    const groups = playCandidates().filter((g) => sel.includes(g.key));
+    const relaunch = groups.map((g) => ({ name: g.name, path: (g.procs.find((p) => p.path && /\.exe$/i.test(p.path)) || {}).path })).filter((x) => x.path);
+    const res = await invoke('actions_apply', { actions: groups.flatMap((g) => g.procs.map((p) => ({ op: 'kill', pid: p.pid, exe: p.exe }))) }).catch(() => []);
+    const ok = res.filter((r) => r.ok).length;
+    localStorageSet('playClosed', JSON.stringify(relaunch));
+    toast(ok ? `Zatvorené. Dobrú hru! 🎮` : 'Nepodarilo sa nič zatvoriť.', ok ? 'ok' : 'err');
+    pr.snap = await invoke('procs_snapshot');
+    box.innerHTML = playList(); bindPlay();
+  };
+  if ($('#playBack')) $('#playBack').onclick = async () => {
+    const closed = JSON.parse(localStorageGet('playClosed') || '[]');
+    const res = await invoke('actions_apply', { actions: closed.map((c) => ({ op: 'launch', path: c.path })) }).catch(() => []);
+    const bad = res.filter((r) => !r.ok).length;
+    toast(bad ? `Spustené, ${bad} sa nepodarilo.` : 'Spustené späť.', bad ? 'err' : 'ok');
+    localStorageSet('playClosed', '[]');
+    setTimeout(async () => { pr.snap = await invoke('procs_snapshot'); box.innerHTML = playList(); bindPlay(); }, 1500);
+  };
+}
+
+$('#gamesRefresh').onclick = () => loadGames();
+views.games = {
+  enter() { loadGames(); },
+  leave() { clearTimeout(gm.timer); clearTimeout(gm.gpuTimer); },
+  visible(v) { if (v && current === 'games') { pollGpu(); pollBench(); } },
+};
 
 /* ========================================================== HISTORY */
 const hi = { filter: 'all' };

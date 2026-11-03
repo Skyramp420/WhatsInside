@@ -63,6 +63,10 @@
 
   const A = (o) => ({ exe: null, app: null, about: null, advice: null, running: null, hidden: false, needs_admin: false, enabled: true, toggle: { t: 'approved', hive: 'HKCU', key: 'x', name: o.name }, ...o });
   const mockChanges = [];
+  const mockBench = { phase: 'idle' };
+  const mockRuns = [
+    { id: Date.now() - 864e5, exe: 'Cyberpunk2077.exe', label: 'Pred zmenou', seconds: 60, frames: 5400, avg_fps: 88.1, low1: 61.4, low01: 48.2, frametime: 11.35, cpu_busy: 4.2, gpu_busy: 11.1, bound: 'gpu', gpu: { name: 'NVIDIA GeForce RTX 4070 SUPER', temp_avg: 80, temp_max: 88, clock_avg: 2380, clock_max: 3105, load_avg: 99, power_avg: 205, power_limit: 220, thermal_share: 0.18, power_cap_share: 0.3, samples: 40 } },
+  ];
   const T = (key, title, about, effect, category, admin, restart, on) => ({ key, title, about, effect, category, admin, restart, on, available: true });
   const mockTweaks = [
     T('startup_delay', 'Spúšťať appky po prihlásení hneď', 'Windows po prihlásení čaká niekoľko sekúnd, kým spustí appky zo spúšťania. Na SSD je to čakanie zbytočné, plocha je skôr použiteľná.', 'big', 'responsive', false, '', false),
@@ -71,6 +75,7 @@
     T('game_dvr', 'Vypnúť nahrávanie hier na pozadí', 'Xbox Game Bar vie stále nahrávať posledné minúty hry, čo zaberá grafiku. Ak klipy robíš inou appkou alebo vôbec, netreba to.', 'big', 'games', false, '', false),
     T('game_mode', 'Herný režim', 'Počas hry Windows odkladá aktualizácie a dáva hre prednosť. Na dnešných PC neškodí, odporúčam mať zapnutý.', 'small', 'games', false, '', true),
     T('hags', 'Hardvérové plánovanie GPU (HAGS)', 'Grafika si sama plánuje prácu, čo trochu znižuje oneskorenie. Na NVIDIA RTX 40 a novších ho potrebuje Frame Generation (DLSS 3 a 4).', 'small', 'games', true, 'reboot', false),
+    T('hvci_off', 'Vypnúť integritu pamäte (HVCI)', 'Bezpečnostná funkcia Windowsu, ktorá v hrách berie zhruba 5 % výkonu, na starších procesoroch aj viac. Vypnutím sa PC stáva o niečo zraniteľnejším.', 'big', 'games', true, 'reboot', false),
     T('mouse_accel', 'Vypnúť zrýchlenie myši', 'Kurzor sa posunie o rovnaký kus podľa toho, kam myšou pohneš, nie podľa toho, ako rýchlo.', 'small', 'games', false, 'logoff', false),
     T('background_apps', 'Zakázať appkám zo Storu beh na pozadí', 'Appky z Microsoft Store nebudú bežať na pozadí a ich upozornenia môžu chodiť neskôr.', 'small', 'background', false, '', false),
     T('edge_boost', 'Edge sa neprednačítava a po zavretí nebeží', 'Edge sa spúšťa už so štartom Windowsu a beží aj po zavretí okna.', 'small', 'background', true, '', false),
@@ -104,6 +109,7 @@
     return {
       cpu_count: 24, cpu_total: snapN > 1 ? j(14) : 0, ram_total: 64 * GB, ram_used: 23.4 * GB,
       groups: [
+        g('exe:cyberpunk2077.exe', 'Cyberpunk2077', 'unknown', null, [p(30, 'Cyberpunk2077.exe', 7800, 22, 0, 'D:\\SteamLibrary\\steamapps\\common\\Cyberpunk 2077\\bin\\x64\\Cyberpunk2077.exe')]),
         g('exe:chrome.exe', 'chrome', 'unknown', null, [p(1, 'chrome.exe', 610, 3.1, 120000, 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe'), p(2, 'chrome.exe', 380, 0.4), p(3, 'chrome.exe', 210, 0.2)]),
         g('windows', 'Windows', 'system', 'Súčasti Windowsu. Nechaj ich tak.', [p(4, 'dwm.exe', 240, 1.2), p(5, 'explorer.exe', 180, 0.3), { ...p(6, 'svchost.exe', 48, 0.5), services: ['Windows Update', 'Background Intelligent Transfer Service'] }]),
         g('Logitech G HUB', 'Logitech G HUB', 'peripheral', 'Nastavenia myši a klávesnice Logitech. Ak má myš profil uložený v sebe, G HUB nemusí bežať stále.', [p(7, 'lghub_system_tray.exe', 77), p(8, 'lghub_agent.exe', 75, 0.2)]),
@@ -176,9 +182,9 @@
             { id: 0, path: 'C:\\Users\\Alex\\Downloads\\DaVinci_Resolve_19.1_Windows.zip', size: 3.2 * GB, age_days: 95, reason: 'installer' },
           ],
         };
-        case 'system_facts': return { power_guid: '381b4222-f694-41f0-9685-ff5bb260df2e', power_name: 'Vyvážený', game_mode: true, hags: false, hibernation: true, hiberfil_bytes: 25.4 * GB, os: 'Windows 11 Home 24H2', build: 26100, has_battery: false };
+        case 'system_facts': return { hvci: true, power_guid: '381b4222-f694-41f0-9685-ff5bb260df2e', power_name: 'Vyvážený', game_mode: true, hags: false, hibernation: true, hiberfil_bytes: 25.4 * GB, os: 'Windows 11 Home 24H2', build: 26100, has_battery: false };
         case 'pc_specs': return {
-          cpu: 'AMD Ryzen 7 7800X3D 8-Core Processor', threads: 16,
+          cpu: 'AMD Ryzen 7 2700 Eight-Core Processor', threads: 16,
           gpus: [{ name: 'NVIDIA GeForce RTX 4070 SUPER', vram: 12 * GB, driver_date: '1-15-2026', driver_version: '32.0.15.9144' }],
           board: 'ASUS TUF GAMING B650-PLUS WIFI', ram_total: 32 * GB,
           ram_modules: [
@@ -190,6 +196,30 @@
         case 'displays_list': return [
           { adapter: 'NVIDIA GeForce RTX 4070 SUPER', primary: true, width: 2560, height: 1440, hz: 60, max_hz: 165 },
           { adapter: 'NVIDIA GeForce RTX 4070 SUPER', primary: false, width: 1920, height: 1080, hz: 60, max_hz: 60 },
+        ];
+        case 'games_list': return [
+          { name: 'Counter-Strike 2', source: 'Steam', dir: 'C:\\Program Files (x86)\\Steam\\steamapps\\common\\Counter-Strike Global Offensive', size: 35 * GB, appid: '730' },
+          { name: 'Cyberpunk 2077', source: 'Steam', dir: 'D:\\SteamLibrary\\steamapps\\common\\Cyberpunk 2077', size: 92 * GB, appid: '1091500' },
+          { name: 'Fortnite', source: 'Epic Games', dir: 'C:\\Program Files\\Epic Games\\Fortnite', size: 46 * GB, appid: 'Fortnite' },
+          { name: 'VALORANT', source: 'Riot', dir: 'C:\\Riot Games\\VALORANT', size: 0, appid: null },
+          { name: 'Minecraft: Java Edition', source: 'Minecraft', dir: 'C:\\Users\\Alex\\AppData\\Roaming\\.minecraft', size: 0, appid: null },
+          { name: 'Stardew Valley', source: 'Steam', dir: 'C:\\Program Files (x86)\\Steam\\steamapps\\common\\Stardew Valley', size: 0.6 * GB, appid: '413150' },
+        ];
+        case 'bench_list': return mockRuns;
+        case 'bench_delete': { const i = mockRuns.findIndex((r) => r.id === args.id); if (i >= 0) mockRuns.splice(i, 1); return null; }
+        case 'bench_status': {
+          if (mockBench.phase === 'running' && Date.now() > mockBench.started_ms + (mockBench.delay + mockBench.seconds) * 1000) {
+            const r = { id: Date.now(), exe: mockBench.exe, label: mockBench.label, seconds: mockBench.seconds, frames: 9000, avg_fps: 148.3, low1: 97.2, low01: 71.5, frametime: 6.74, cpu_busy: 3.1, gpu_busy: 6.5, bound: 'gpu', gpu: { name: 'NVIDIA GeForce RTX 4070 SUPER', temp_avg: 71, temp_max: 74, clock_avg: 2610, clock_max: 3105, load_avg: 98, power_avg: 214, power_limit: 220, thermal_share: 0, power_cap_share: 0.4, samples: 40 } };
+            mockRuns.push(r); mockBench.phase = 'done'; mockBench.result = r;
+          }
+          return { ...mockBench, live: mockBench.phase === 'running' ? { name: 'NVIDIA GeForce RTX 4070 SUPER', temp: 72, clock: 2600, clock_max: 3105, load: 97, power: 210, power_limit: 220, fan: 55, thermal: false, power_cap: true } : null };
+        }
+        case 'bench_start': Object.assign(mockBench, { phase: 'running', exe: args.exe, label: args.label, seconds: window.MOCK_BENCH_S || args.seconds, delay: window.MOCK_BENCH_D ?? args.delay, started_ms: Date.now(), result: null, error: null }); return null;
+        case 'bench_cancel': mockBench.phase = 'error'; mockBench.error = 'Meranie zastavené.'; return null;
+        case 'gpu_sample': return { name: 'NVIDIA GeForce RTX 4070 SUPER', temp: 41, clock: 210, clock_max: 3105, load: 3, power: 14, power_limit: 220, fan: 0, thermal: false, power_cap: false };
+        case 'shader_caches': return [
+          { label: 'NVIDIA DirectX', path: 'C:\\Users\\Alex\\AppData\\Local\\NVIDIA\\DXCache', size: 3.9 * GB },
+          { label: 'Windows (DirectX)', path: 'C:\\Users\\Alex\\AppData\\Local\\D3DSCache', size: 0.4 * GB },
         ];
         case 'tweaks_list': return mockTweaks.map((t) => ({ ...t }));
         case 'save_card': return 'C:\\Users\\Alex\\Pictures\\WhatsInside\\WhatsInside-PC-1760900000.png';

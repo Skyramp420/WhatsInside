@@ -1889,7 +1889,7 @@ $('#updateBtn').onclick = () => {
   if (!u?.latest) return;
   const m = modal(`<h3>WhatsInside ${esc(u.latest.version)}</h3>
     <p class="mp">Teraz máš ${esc(u.current)}. Stiahnem inštalátor z GitHubu, overím jeho kontrolný súčet a nainštalujem ho. Appka sa na chvíľu zavrie a sama sa znova otvorí.</p>
-    ${u.latest.notes ? `<div class="notes">${esc(u.latest.notes).replace(/^### (.*)$/gm, '<b>$1</b>').replace(/^- (.*)$/gm, '• $1').replace(/\n/g, '<br>')}</div>` : ''}
+    ${u.latest.notes ? `<div class="notes">${esc(u.latest.notes).replace(/\r/g, '').replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/^### (.*)$/gm, '<b>$1</b>').replace(/^- (.*)$/gm, '• $1').replace(/\n/g, '<br>')}</div>` : ''}
     ${u.installed ? '' : '<p class="mnote">Spúšťaš prenosnú verziu, preto sa otvorí bežný inštalátor. Po inštalácii spúšťaj WhatsInside zo Štartu.</p>'}
     <div class="mact"><a class="btn ghost" href="https://github.com/Skyramp420/WhatsInside/releases" target="_blank" rel="noreferrer">Všetky verzie</a><button class="btn" data-close>Neskôr</button><button class="btn primary" id="updGo">Aktualizovať</button></div>`);
   $('#updGo', m).onclick = async () => {

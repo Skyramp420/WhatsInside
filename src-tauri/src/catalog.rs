@@ -196,6 +196,144 @@ pub const APPS: &[App] = &[
         verdict: Verdict::Optional,
         about: "Potrebné len pri hraní VR cez Quest Link.",
     },
+    App {
+        name: "Microsoft Office",
+        patterns: &["officeclicktorun", "clicktorunsvc", "\\microsoft office\\"],
+        verdict: Verdict::Needed,
+        about: "Aktualizácie a spúšťanie Office. Bez tejto služby sa Word a Excel nespustia.",
+    },
+    App {
+        name: "LookAtThis",
+        patterns: &["lookatthis"],
+        verdict: Verdict::Needed,
+        about: "Z rodiny WheresTheApp. Klipy z hier, beží nenápadne na pozadí.",
+    },
+    App {
+        name: "WorkingOnIt",
+        patterns: &["workingonit"],
+        verdict: Verdict::Needed,
+        about: "Z rodiny WheresTheApp. Prehľad práce na projektoch.",
+    },
+    App {
+        name: "Riot Vanguard",
+        patterns: &["\\riot vanguard\\", "vgc.exe", "vgtray", "vgk.sys"],
+        verdict: Verdict::Needed,
+        about: "Anti-cheat pre Valorant a League of Legends. Štartuje už s Windowsom a bez neho sa tieto hry nespustia. Ak ich nehráš, odinštaluj ho cez Aplikácie.",
+    },
+    App {
+        name: "Riot Client",
+        patterns: &["riotclientservices", "riot client"],
+        verdict: Verdict::Optional,
+        about: "Spúšťač hier od Riotu. Nemusí bežať, kým nehráš.",
+    },
+    App {
+        name: "EA app",
+        patterns: &["eadesktop", "ea desktop", "eabackgroundservice", "\\electronic arts\\ea desktop"],
+        verdict: Verdict::Optional,
+        about: "Spúšťač hier od EA. Nemusí bežať, kým nehráš.",
+    },
+    App {
+        name: "Ubisoft Connect",
+        patterns: &["upc.exe", "ubisoftconnect", "ubisoft connect", "uplay"],
+        verdict: Verdict::Optional,
+        about: "Spúšťač hier od Ubisoftu. Nemusí bežať, kým nehráš.",
+    },
+    App {
+        name: "Battle.net",
+        patterns: &["battle.net"],
+        verdict: Verdict::Optional,
+        about: "Spúšťač hier od Blizzardu. Nemusí bežať, kým nehráš.",
+    },
+    App {
+        name: "GOG Galaxy",
+        patterns: &["galaxyclient", "gog galaxy", "galaxycommunication"],
+        verdict: Verdict::Optional,
+        about: "Spúšťač hier od GOG. Nemusí bežať, kým nehráš.",
+    },
+    App {
+        name: "Rockstar Games Launcher",
+        patterns: &["rockstar games launcher", "rockstarservice", "socialclubhelper"],
+        verdict: Verdict::Optional,
+        about: "Spúšťač hier od Rockstaru. Nemusí bežať, kým nehráš.",
+    },
+    App {
+        name: "Overwolf",
+        patterns: &["overwolf"],
+        verdict: Verdict::Optional,
+        about: "Overlaye a doplnky do hier (CurseForge, štatistiky). Beží v niekoľkých procesoch a pri hraní ukrajuje výkon.",
+    },
+    App {
+        name: "MSI Afterburner / RivaTuner",
+        patterns: &["msiafterburner", "rtss.exe", "rivatuner"],
+        verdict: Verdict::Optional,
+        about: "Pretaktovanie a FPS overlay. Ak máš nastavenú krivku alebo undervolt grafiky, musí sa spúšťať s Windowsom, inak sa nastavenie neaplikuje.",
+    },
+    App {
+        name: "Wallpaper Engine",
+        patterns: &["wallpaper32", "wallpaper64", "wallpaperservice", "wallpaper_engine"],
+        verdict: Verdict::Optional,
+        about: "Živá tapeta. Pri hre sa sama pozastaví, ale stále drží pamäť.",
+    },
+    App {
+        name: "Google aktualizácie",
+        patterns: &["googleupdate", "googleupdater", "\\google\\update\\", "gupdate", "googlecrashhandler"],
+        verdict: Verdict::Optional,
+        about: "Aktualizuje Chrome a iné appky od Googlu. Ak ho vypneš z automatického spúšťania, Chrome sa aktualizuje sám pri spustení.",
+    },
+    App {
+        name: "Microsoft Edge aktualizácie",
+        patterns: &["microsoftedgeupdate", "edgeupdate", "\\microsoft\\edgeupdate\\"],
+        verdict: Verdict::Optional,
+        about: "Aktualizuje Edge a WebView2. Môže štartovať ručne, keď ho Edge potrebuje. Úplne vypnúť ho neodporúčam, WebView2 používa veľa appiek.",
+    },
+    App {
+        name: "Adobe Acrobat aktualizácie",
+        patterns: &["adobearm", "armsvc", "\\adobe\\arm\\"],
+        verdict: Verdict::Optional,
+        about: "Aktualizácie Acrobat Readeru. Stačí, keď štartuje ručne.",
+    },
+    App {
+        name: "Brave aktualizácie",
+        patterns: &["braveupdate", "brave update"],
+        verdict: Verdict::Optional,
+        about: "Aktualizácie prehliadača Brave. Prehliadač sa aktualizuje aj pri spustení.",
+    },
+    App {
+        name: "Opera",
+        patterns: &["opera_autoupdate", "opera browser assistant", "\\opera gx\\", "\\programs\\opera\\"],
+        verdict: Verdict::Optional,
+        about: "Aktualizácie a asistent Opery. Spúšťa sa s Windowsom, ale nemusí.",
+    },
+    App {
+        name: "Java aktualizácie",
+        patterns: &["jusched", "jucheck", "\\java update\\"],
+        verdict: Verdict::Optional,
+        about: "Pravidelne kontroluje aktualizácie Javy. Nemusí bežať stále.",
+    },
+    App {
+        name: "Dropbox",
+        patterns: &["dropbox"],
+        verdict: Verdict::Optional,
+        about: "Synchronizácia súborov. Ak Dropbox nepoužívaš, nemusí sa spúšťať.",
+    },
+    App {
+        name: "CCleaner",
+        patterns: &["ccleaner"],
+        verdict: Verdict::Optional,
+        about: "Beží na pozadí kvôli „monitorovaniu“ a reklamám na Pro verziu. Nič, čo by Windows nevedel sám.",
+    },
+    App {
+        name: "Intel Driver & Support Assistant",
+        patterns: &["dsatray", "dsaservice", "dsaupdateservice", "driver & support assistant"],
+        verdict: Verdict::Optional,
+        about: "Kontroluje ovládače Intel. Stačí ho spustiť raz za čas ručne.",
+    },
+    App {
+        name: "Apple aktualizácie",
+        patterns: &["softwareupdate.exe", "apple software update"],
+        verdict: Verdict::Optional,
+        about: "Aktualizácie appiek od Apple. Nemusí bežať stále.",
+    },
 ];
 
 pub fn find(haystacks: &[&str]) -> Option<&'static App> {
@@ -205,6 +343,64 @@ pub fn find(haystacks: &[&str]) -> Option<&'static App> {
             .iter()
             .any(|p| lowered.iter().any(|h| h.contains(p)))
     })
+}
+
+/// What we suggest for a built-in Windows service that starts automatically.
+#[derive(Serialize, Clone, Copy, PartialEq, Eq, Debug)]
+#[serde(rename_all = "snake_case")]
+pub enum Advice {
+    /// Safe to switch to manual start for most people.
+    Off,
+    /// Depends on what you use; explained in `about`.
+    Maybe,
+    /// Leave it, explained because people often get told to disable it.
+    Keep,
+}
+
+pub struct WinService {
+    pub key: &'static str,
+    pub title: &'static str,
+    pub advice: Advice,
+    pub about: &'static str,
+}
+
+/// Built-in services people ask about. Honest: switching these off saves a
+/// few MB and a little background work, it won't add FPS.
+pub const WIN_SERVICES: &[WinService] = &[
+    WinService { key: "diagtrack", title: "Telemetria Windowsu", advice: Advice::Off,
+        about: "Posiela Microsoftu diagnostické údaje. Windows funguje rovnako aj bez nej." },
+    WinService { key: "dmwappushservice", title: "Smerovanie push správ (telemetria)", advice: Advice::Off,
+        about: "Pomocník telemetrie. Bez nej nič nestratíš." },
+    WinService { key: "mapsbroker", title: "Správca stiahnutých máp", advice: Advice::Off,
+        about: "Offline mapy pre appku Mapy. Ak ju nepoužívaš, nemusí štartovať." },
+    WinService { key: "retaildemo", title: "Režim predajne", advice: Advice::Off,
+        about: "Ukážkový režim pre PC vystavené v obchode." },
+    WinService { key: "remoteregistry", title: "Vzdialený register", advice: Advice::Off,
+        about: "Umožňuje meniť register cez sieť. Doma ho nepotrebuješ a vypnutý je bezpečnejší." },
+    WinService { key: "fax", title: "Fax", advice: Advice::Off, about: "Fax." },
+    WinService { key: "trkwks", title: "Sledovanie distribuovaných prepojení", advice: Advice::Off,
+        about: "Opravuje odkazy na súbory presunuté v sieti firmy. Doma zbytočné." },
+    WinService { key: "pcasvc", title: "Asistent kompatibility programov", advice: Advice::Maybe,
+        about: "Pri starých programoch ponúka režim kompatibility. Ak hráš staré hry, nechaj ho." },
+    WinService { key: "spooler", title: "Tlač (Print Spooler)", advice: Advice::Maybe,
+        about: "Potrebná na tlač aj „Tlačiť do PDF“. Ak netlačíš, môže štartovať ručne." },
+    WinService { key: "wsearch", title: "Indexovanie vyhľadávania", advice: Advice::Maybe,
+        about: "Zrýchľuje hľadanie v Štarte a Prieskumníkovi. Bez neho hľadanie funguje, len pomalšie." },
+    WinService { key: "sysmain", title: "SysMain (Superfetch)", advice: Advice::Keep,
+        about: "Pred-načítava appky, ktoré často používaš. Na rýchlom SSD je efekt malý, ale ani neškodí. Často sa radí ho vypnúť, výkon to však nepridá." },
+    WinService { key: "iphlpsvc", title: "Pomocník IP", advice: Advice::Maybe,
+        about: "Prechodové technológie IPv6. Väčšinou nie je potrebná, ale niektoré hry a VPN ju využívajú." },
+    WinService { key: "xblauthmanager", title: "Xbox Live prihlásenie", advice: Advice::Keep,
+        about: "Potrebné pre hry z Game Passu a appku Xbox." },
+    WinService { key: "xboxgipsvc", title: "Xbox príslušenstvo", advice: Advice::Keep,
+        about: "Potrebné pre Xbox ovládač." },
+    WinService { key: "wersvc", title: "Hlásenie chýb Windowsu", advice: Advice::Maybe,
+        about: "Pri páde appky pošle hlásenie Microsoftu. Bez neho nič nestratíš, len neuvidíš okno s hlásením." },
+];
+
+pub fn win_service(key: &str) -> Option<&'static WinService> {
+    let k = key.to_lowercase();
+    WIN_SERVICES.iter().find(|w| w.key == k)
 }
 
 /// True when a path points inside the Windows directory itself.
@@ -283,6 +479,15 @@ mod tests {
             "Microsoft Edge WebView2"
         );
         assert_eq!(find(&["msedge.exe"]).unwrap().name, "Microsoft Edge");
+    }
+
+    #[test]
+    fn knows_updaters_and_windows_services() {
+        assert_eq!(find(&[r"C:\Program Files (x86)\Google\GoogleUpdater\updater.exe"]).unwrap().name, "Google aktualizácie");
+        assert_eq!(find(&["vgc.exe"]).unwrap().verdict, Verdict::Needed);
+        assert_eq!(win_service("DiagTrack").unwrap().advice, Advice::Off);
+        assert_eq!(win_service("SysMain").unwrap().advice, Advice::Keep);
+        assert!(win_service("AudioSrv").is_none());
     }
 
     #[test]

@@ -1,7 +1,7 @@
 //! Live process overview, grouped the way a person thinks about it:
 //! "GIGABYTE Control Center – 85 MB", not four unrelated exe names.
 //!
-//! Read-only. We never kill or suspend anything.
+//! Ending a process lives in `actions`; this module only reads.
 
 use crate::catalog::{self, Verdict};
 use serde::Serialize;
@@ -29,6 +29,8 @@ pub struct Proc {
     pub ram: Option<u64>,
     pub cpu: f32,
     pub io_bps: f64,
+    /// Services hosted in this process (display names), e.g. inside svchost.
+    pub services: Vec<String>,
 }
 
 #[derive(Serialize, Clone, Debug)]
@@ -89,7 +91,7 @@ impl Sampler {
         self.last = next;
         self.last_at = Some(now);
 
-        let groups = group(procs);
+        let groups = group(procs, &platform::service_map());
         let cpu_total = groups.iter().map(|g| g.cpu).sum::<f32>().min(100.0);
         Snapshot {
             cpu_count,
@@ -102,7 +104,7 @@ impl Sampler {
 }
 
 /// Groups processes by catalog app, Windows itself, or exe name.
-pub fn group(procs: Vec<(RawProc, f32, f64)>) -> Vec<Group> {
+pub fn group(procs: Vec<(RawProc, f32, f64)>, services: &HashMap<u32, Vec<String>>) -> Vec<Group> {
     let mut map: HashMap<String, Group> = HashMap::new();
     for (r, cpu, io_bps) in procs {
         let path = r.path.as_deref().unwrap_or("");
@@ -153,6 +155,7 @@ pub fn group(procs: Vec<(RawProc, f32, f64)>) -> Vec<Group> {
             ram: r.ram,
             cpu,
             io_bps,
+            services: services.get(&r.pid).cloned().unwrap_or_default(),
         });
     }
     let mut groups: Vec<Group> = map.into_values().collect();
@@ -167,6 +170,7 @@ pub fn group(procs: Vec<(RawProc, f32, f64)>) -> Vec<Group> {
 #[cfg(windows)]
 mod platform {
     use super::RawProc;
+    use std::collections::HashMap;
     use windows::core::PWSTR;
     use windows::Win32::Foundation::{CloseHandle, FILETIME};
     use windows::Win32::System::Diagnostics::ToolHelp::{
@@ -256,6 +260,68 @@ mod platform {
         out
     }
 
+    /// PID → display names of the services running in it.
+    pub fn service_map() -> HashMap<u32, Vec<String>> {
+        use windows::core::PCWSTR;
+        use windows::Win32::System::Services::{
+            CloseServiceHandle, EnumServicesStatusExW, OpenSCManagerW,
+            ENUM_SERVICE_STATUS_PROCESSW, SC_ENUM_PROCESS_INFO, SC_MANAGER_CONNECT,
+            SC_MANAGER_ENUMERATE_SERVICE, SERVICE_ACTIVE, SERVICE_WIN32,
+        };
+        let mut map: HashMap<u32, Vec<String>> = HashMap::new();
+        unsafe {
+            let Ok(scm) = OpenSCManagerW(
+                PCWSTR::null(),
+                PCWSTR::null(),
+                SC_MANAGER_CONNECT | SC_MANAGER_ENUMERATE_SERVICE,
+            ) else {
+                return map;
+            };
+            let (mut needed, mut count, mut resume) = (0u32, 0u32, 0u32);
+            let _ = EnumServicesStatusExW(
+                scm,
+                SC_ENUM_PROCESS_INFO,
+                SERVICE_WIN32,
+                SERVICE_ACTIVE,
+                None,
+                &mut needed,
+                &mut count,
+                Some(&mut resume),
+                PCWSTR::null(),
+            );
+            let mut buf = vec![0u8; needed as usize + 4096];
+            resume = 0;
+            if EnumServicesStatusExW(
+                scm,
+                SC_ENUM_PROCESS_INFO,
+                SERVICE_WIN32,
+                SERVICE_ACTIVE,
+                Some(&mut buf),
+                &mut needed,
+                &mut count,
+                Some(&mut resume),
+                PCWSTR::null(),
+            )
+            .is_ok()
+            {
+                let list = std::slice::from_raw_parts(
+                    buf.as_ptr() as *const ENUM_SERVICE_STATUS_PROCESSW,
+                    count as usize,
+                );
+                for s in list {
+                    let pid = s.ServiceStatusProcess.dwProcessId;
+                    if pid == 0 || s.lpDisplayName.is_null() {
+                        continue;
+                    }
+                    let name = s.lpDisplayName.to_string().unwrap_or_default();
+                    map.entry(pid).or_default().push(name);
+                }
+            }
+            let _ = CloseServiceHandle(scm);
+        }
+        map
+    }
+
     pub fn memory() -> (u64, u64) {
         unsafe {
             let mut m = MEMORYSTATUSEX {
@@ -282,6 +348,9 @@ mod platform {
     pub fn memory() -> (u64, u64) {
         (0, 0)
     }
+    pub fn service_map() -> std::collections::HashMap<u32, Vec<String>> {
+        Default::default()
+    }
 }
 
 #[cfg(test)]
@@ -305,6 +374,8 @@ mod tests {
 
     #[test]
     fn groups_like_a_person_would() {
+        let mut svc = HashMap::new();
+        svc.insert(12u32, vec!["Windows Update".to_string()]);
         let g = group(vec![
             raw(
                 10,
@@ -332,7 +403,7 @@ mod tests {
                 Some(r"C:\Program Files\Google\Chrome\Application\chrome.exe"),
                 200,
             ),
-        ]);
+        ], &svc);
         let names: Vec<_> = g
             .iter()
             .map(|g| (g.name.as_str(), g.procs.len(), g.ram >> 20))
@@ -347,5 +418,7 @@ mod tests {
         );
         assert_eq!(g[2].verdict, Verdict::Rgb);
         assert!((g[0].cpu - 2.0).abs() < f32::EPSILON);
+        let win = g.iter().find(|x| x.name == "Windows").unwrap();
+        assert!(win.procs.iter().any(|p| p.services == vec!["Windows Update".to_string()]));
     }
 }

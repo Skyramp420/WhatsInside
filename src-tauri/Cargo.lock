@@ -3930,13 +3930,14 @@ dependencies = [
 
 [[package]]
 name = "whatsinside"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "base64 0.22.1",
  "hidapi",
  "rayon",
  "serde",
  "serde_json",
+ "sha2",
  "tauri",
  "tauri-build",
  "windows",

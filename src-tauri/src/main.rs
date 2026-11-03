@@ -1,11 +1,13 @@
 //! WhatsInside – ľahký prehľad o tom, čo je v tvojom PC. Od WheresTheApp.
 //!
-//! Everything here is read-only. When the window is closed nothing keeps
-//! running: no service, no tray icon, no background thread.
+//! Changes happen only when the user asks, are reversible and logged (see
+//! `actions`). When the window is closed nothing keeps running: no service,
+//! no tray icon, no background thread.
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 #![cfg_attr(not(windows), allow(dead_code))]
 
+mod actions;
 mod autostart;
 mod catalog;
 mod hw;
@@ -13,6 +15,7 @@ mod known;
 mod procs;
 mod storage;
 mod system;
+mod update;
 
 use std::sync::Mutex;
 use tauri::State;
@@ -30,7 +33,35 @@ async fn procs_snapshot(state: State<'_, AppState>) -> Result<procs::Snapshot, S
 
 #[tauri::command]
 async fn autostart_list() -> Vec<autostart::Item> {
-    autostart::list()
+    autostart::list(&actions::changed_services())
+}
+
+#[tauri::command]
+async fn actions_apply(actions: Vec<actions::Action>) -> Vec<actions::Outcome> {
+    actions::apply(actions)
+}
+
+#[tauri::command]
+async fn changes_list() -> Vec<actions::Change> {
+    actions::changes()
+}
+
+#[tauri::command]
+async fn changes_undo(index: usize) -> Result<(), String> {
+    actions::undo(index)
+}
+
+#[tauri::command]
+async fn update_check() -> update::Check {
+    update::check()
+}
+
+/// Downloads the new version, starts the installer and quits.
+#[tauri::command]
+async fn update_install(app: tauri::AppHandle, latest: update::Latest) -> Result<(), String> {
+    update::install(&latest)?;
+    app.exit(0);
+    Ok(())
 }
 
 #[tauri::command]
@@ -197,6 +228,14 @@ fn reveal(_path: &str) -> Result<(), String> {
 }
 
 fn main() {
+    // Elevated helper mode: run a batch of changes after the UAC prompt, then quit.
+    let args: Vec<String> = std::env::args().collect();
+    if let Some(i) = args.iter().position(|a| a == "--apply") {
+        if let (Some(input), Some(output)) = (args.get(i + 1), args.get(i + 2)) {
+            actions::run_batch(input, output);
+        }
+        return;
+    }
     tauri::Builder::default()
         .manage(AppState::default())
         .invoke_handler(tauri::generate_handler![
@@ -218,6 +257,11 @@ fn main() {
             system_facts,
             pc_specs,
             save_card,
+            actions_apply,
+            changes_list,
+            changes_undo,
+            update_check,
+            update_install,
         ])
         .run(tauri::generate_context!())
         .expect("WhatsInside sa nepodarilo spustiť");

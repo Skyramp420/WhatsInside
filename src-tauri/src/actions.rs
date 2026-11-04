@@ -37,6 +37,13 @@ pub enum Action {
     Launch {
         path: String,
     },
+    /// Remove a preinstalled Store app from the known list (`appx`).
+    Uninstall {
+        full: String,
+        name: String,
+    },
+    /// Restart File Explorer so taskbar and menu changes show up.
+    RestartExplorer,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
@@ -224,7 +231,15 @@ pub fn apply(actions: Vec<Action>) -> Vec<Outcome> {
                 enabled: false,
                 undone: false,
             }),
-            Action::Launch { .. } => {}
+            Action::Uninstall { full, name } => log.push(Change {
+                at: now(),
+                id: format!("appx:{}", full.split('_').next().unwrap_or(full)),
+                name: name.clone(),
+                toggle: None,
+                enabled: false,
+                undone: false,
+            }),
+            Action::Launch { .. } | Action::RestartExplorer => {}
         }
     }
     if log.len() > 300 {
@@ -333,6 +348,19 @@ mod platform {
             }
             Action::Kill { pid, exe } => kill(*pid, exe),
             Action::Launch { path } => launch(path),
+            Action::Uninstall { full, .. } => crate::appx::uninstall(full),
+            Action::RestartExplorer => {
+                let _ = std::process::Command::new("taskkill")
+                    .args(["/F", "/IM", "explorer.exe"])
+                    .creation_flags(CREATE_NO_WINDOW)
+                    .output();
+                std::thread::sleep(std::time::Duration::from_millis(600));
+                let windir = std::env::var("SystemRoot").unwrap_or_else(|_| r"C:\Windows".into());
+                std::process::Command::new(std::path::Path::new(&windir).join("explorer.exe"))
+                    .spawn()
+                    .map(|_| ())
+                    .map_err(|e| e.to_string())
+            }
         }
     }
 

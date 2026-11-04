@@ -8,6 +8,7 @@
 #![cfg_attr(not(windows), allow(dead_code))]
 
 mod actions;
+mod appx;
 mod autostart;
 mod bench;
 mod catalog;
@@ -101,6 +102,11 @@ async fn bench_delete(id: u64) {
 #[tauri::command]
 async fn gpu_sample() -> Option<gpu::Sample> {
     gpu::sample()
+}
+
+#[tauri::command]
+async fn appx_list() -> Vec<appx::App> {
+    appx::list()
 }
 
 #[tauri::command]
@@ -333,6 +339,7 @@ fn main() {
             bench_delete,
             gpu_sample,
             games_list,
+            appx_list,
             shader_caches,
         ])
         .run(tauri::generate_context!())

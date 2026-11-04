@@ -19,6 +19,8 @@ pub struct RegOp {
     pub off: Option<&'static str>,
     /// What Windows assumes when the value doesn't exist.
     pub absent: Option<&'static str>,
+    /// When turning off: delete this whole key instead of the value.
+    pub delete_key: Option<&'static str>,
 }
 
 pub enum Op {
@@ -35,8 +37,10 @@ pub struct Tweak {
     pub effect: &'static str,
     /// "responsive", "games", "background", "looks"
     pub category: &'static str,
+    /// Icon name in the UI.
+    pub icon: &'static str,
     pub admin: bool,
-    /// "", "logoff" or "reboot"
+    /// "", "explorer" (restart File Explorer), "logoff" or "reboot"
     pub restart: &'static str,
     /// Only offered when the first value already exists (e.g. HAGS needs a
     /// GPU and driver that support it; Windows creates the value then).
@@ -51,7 +55,13 @@ const fn reg(
     on: Option<&'static str>,
     off: Option<&'static str>,
 ) -> Op {
-    Op::Reg(RegOp { key, name, ty, on, off, absent: None })
+    Op::Reg(RegOp { key, name, ty, on, off, absent: None, delete_key: None })
+}
+
+/// An empty default value whose mere existence changes behaviour (like the
+/// classic context menu); off deletes `parent` entirely.
+const fn reg_marker(key: &'static str, parent: &'static str) -> Op {
+    Op::Reg(RegOp { key, name: "", ty: "REG_SZ", on: Some(""), off: None, absent: None, delete_key: Some(parent) })
 }
 
 /// Like `reg`, for values whose absence Windows reads as "on".
@@ -61,12 +71,13 @@ const fn reg_default_on(
     on: &'static str,
     off: &'static str,
 ) -> Op {
-    Op::Reg(RegOp { key, name, ty: "REG_DWORD", on: Some(on), off: Some(off), absent: Some(on) })
+    Op::Reg(RegOp { key, name, ty: "REG_DWORD", on: Some(on), off: Some(off), absent: Some(on), delete_key: None })
 }
 
 pub const TWEAKS: &[Tweak] = &[
     Tweak {
         key: "startup_delay",
+        icon: "rocket",
         title: "Spúšťať appky po prihlásení hneď",
         about: "Windows po prihlásení čaká niekoľko sekúnd, kým spustí appky zo spúšťania. Na SSD je to čakanie zbytočné, plocha je skôr použiteľná.",
         effect: "big",
@@ -78,6 +89,7 @@ pub const TWEAKS: &[Tweak] = &[
     },
     Tweak {
         key: "menu_delay",
+        icon: "menu",
         title: "Rýchlejšie podponuky",
         about: "Windows čaká 0,4 s, kým otvorí podponuku. Takto stačí 0,1 s, menu pôsobia svižnejšie.",
         effect: "small",
@@ -89,6 +101,7 @@ pub const TWEAKS: &[Tweak] = &[
     },
     Tweak {
         key: "power_plan",
+        icon: "bolt",
         title: "Plán napájania Vysoký výkon",
         about: "Procesor menej zaspáva a rýchlejšie reaguje. Na stolnom PC je rozdiel malý, ale merateľný v odozve. Na notebooku viac vybíja batériu.",
         effect: "small",
@@ -100,6 +113,7 @@ pub const TWEAKS: &[Tweak] = &[
     },
     Tweak {
         key: "game_dvr",
+        icon: "video",
         title: "Vypnúť nahrávanie hier na pozadí",
         about: "Xbox Game Bar vie stále nahrávať posledné minúty hry, čo zaberá grafiku. Ak klipy robíš inou appkou alebo vôbec, netreba to.",
         effect: "big",
@@ -114,6 +128,7 @@ pub const TWEAKS: &[Tweak] = &[
     },
     Tweak {
         key: "game_mode",
+        icon: "game",
         title: "Herný režim",
         about: "Počas hry Windows odkladá aktualizácie a dáva hre prednosť. Na dnešných PC neškodí, odporúčam mať zapnutý.",
         effect: "small",
@@ -125,6 +140,7 @@ pub const TWEAKS: &[Tweak] = &[
     },
     Tweak {
         key: "hags",
+        icon: "gpu",
         title: "Hardvérové plánovanie GPU (HAGS)",
         about: "Grafika si sama plánuje prácu, čo trochu znižuje oneskorenie. Na NVIDIA RTX 40 a novších ho potrebuje Frame Generation (DLSS 3 a 4).",
         effect: "small",
@@ -136,6 +152,7 @@ pub const TWEAKS: &[Tweak] = &[
     },
     Tweak {
         key: "hvci_off",
+        icon: "shield",
         title: "Vypnúť integritu pamäte (HVCI)",
         about: "Bezpečnostná funkcia Windowsu, ktorá v hrách berie zhruba 5 % výkonu, na starších procesoroch (Ryzen 1000/2000, Intel 6. generácie a starší) aj viac. Vypnutím sa PC stáva o niečo zraniteľnejším voči škodlivým ovládačom. Niektoré anti-cheaty a firemné PC ju vyžadujú.",
         effect: "big",
@@ -147,6 +164,7 @@ pub const TWEAKS: &[Tweak] = &[
     },
     Tweak {
         key: "mouse_accel",
+        icon: "mouse",
         title: "Vypnúť zrýchlenie myši",
         about: "Kurzor sa posunie o rovnaký kus podľa toho, kam myšou pohneš, nie podľa toho, ako rýchlo. Väčšina hráčov to chce, je to ale vec zvyku.",
         effect: "small",
@@ -162,6 +180,7 @@ pub const TWEAKS: &[Tweak] = &[
     },
     Tweak {
         key: "background_apps",
+        icon: "app",
         title: "Zakázať appkám zo Storu beh na pozadí",
         about: "Appky z Microsoft Store (Počasie, Prepojenie s telefónom a podobne) nebudú bežať na pozadí a ich upozornenia môžu chodiť neskôr. Klasických programov sa to netýka.",
         effect: "small",
@@ -173,6 +192,7 @@ pub const TWEAKS: &[Tweak] = &[
     },
     Tweak {
         key: "edge_boost",
+        icon: "globe",
         title: "Edge sa neprednačítava a po zavretí nebeží",
         about: "Edge sa spúšťa už so štartom Windowsu a beží aj po zavretí okna. Po zapnutí uvidíš v Edge hlásenie „Spravované vašou organizáciou“. To len znamená, že platí toto nastavenie.",
         effect: "small",
@@ -187,6 +207,7 @@ pub const TWEAKS: &[Tweak] = &[
     },
     Tweak {
         key: "tips",
+        icon: "bell",
         title: "Vypnúť tipy a návrhy Windowsu",
         about: "Žiadne „Tipy na používanie Windowsu“, návrhy v Štarte ani v Nastaveniach. Menej rušenia a menej vecí na pozadí.",
         effect: "small",
@@ -202,6 +223,7 @@ pub const TWEAKS: &[Tweak] = &[
     },
     Tweak {
         key: "transparency",
+        icon: "layers",
         title: "Vypnúť priehľadnosť",
         about: "Pomôže na slabších PC a notebookoch s integrovanou grafikou. Na hernom PC rozdiel nespoznáš.",
         effect: "small",
@@ -213,6 +235,7 @@ pub const TWEAKS: &[Tweak] = &[
     },
     Tweak {
         key: "min_animate",
+        icon: "window",
         title: "Okná bez animácie pri minimalizovaní",
         about: "Okná sa minimalizujú a obnovujú hneď. Na slabšom PC pôsobí systém rýchlejšie.",
         effect: "small",
@@ -221,6 +244,247 @@ pub const TWEAKS: &[Tweak] = &[
         restart: "logoff",
         only_if_exists: false,
         ops: &[reg(r"HKCU\Control Panel\Desktop\WindowMetrics", "MinAnimate", "REG_SZ", Some("0"), Some("1"))],
+    },
+    // ---- Windows 11: less noise, clearer Explorer, safer updates
+    Tweak {
+        key: "classic_menu",
+        icon: "menu",
+        title: "Klasické kontextové menu",
+        about: "Pravý klik hneď ukáže všetky možnosti, bez „Zobraziť ďalšie možnosti“. Programy ako 7-Zip alebo WinRAR sú zase hneď po ruke.",
+        effect: "big",
+        category: "w_explorer",
+        admin: false,
+        restart: "explorer",
+        only_if_exists: false,
+        ops: &[reg_marker(r"HKCU\Software\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}\InprocServer32", r"HKCU\Software\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}")],
+    },
+    Tweak {
+        key: "file_ext",
+        icon: "file",
+        title: "Zobrazovať prípony súborov",
+        about: "Uvidíš, či je súbor .jpg, .png alebo .exe. Aj bezpečnejšie: „faktura.pdf.exe“ hneď spoznáš.",
+        effect: "big",
+        category: "w_explorer",
+        admin: false,
+        restart: "explorer",
+        only_if_exists: false,
+        ops: &[reg(r"HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced", "HideFileExt", "REG_DWORD", Some("0"), Some("1"))],
+    },
+    Tweak {
+        key: "explorer_thispc",
+        icon: "pc",
+        title: "Prieskumník otvárať na Tento počítač",
+        about: "Namiesto stránky Domov s nedávnymi súbormi uvidíš hneď disky a priečinky.",
+        effect: "small",
+        category: "w_explorer",
+        admin: false,
+        restart: "",
+        only_if_exists: false,
+        ops: &[reg(r"HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced", "LaunchTo", "REG_DWORD", Some("1"), None)],
+    },
+    Tweak {
+        key: "taskbar_left",
+        icon: "taskbar",
+        title: "Panel úloh zarovnaný doľava",
+        about: "Štart a appky vľavo ako vo Windowse 10. Vec vkusu, na širokom monitore je to pohodlnejšie.",
+        effect: "small",
+        category: "w_explorer",
+        admin: false,
+        restart: "",
+        only_if_exists: false,
+        ops: &[reg(r"HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced", "TaskbarAl", "REG_DWORD", Some("0"), Some("1"))],
+    },
+    Tweak {
+        key: "taskview_off",
+        icon: "taskbar",
+        title: "Skryť tlačidlo Zobrazenie úloh",
+        about: "Menej ikon na paneli úloh. Zobrazenie úloh ostáva na Win + Tab.",
+        effect: "small",
+        category: "w_explorer",
+        admin: false,
+        restart: "",
+        only_if_exists: false,
+        ops: &[reg(r"HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced", "ShowTaskViewButton", "REG_DWORD", Some("0"), Some("1"))],
+    },
+    Tweak {
+        key: "end_task",
+        icon: "x",
+        title: "„Ukončiť úlohu“ v paneli úloh",
+        about: "Pravý klik na appku v paneli úloh ju ukončí, aj keď zamrzla. Bez Správcu úloh.",
+        effect: "big",
+        category: "w_explorer",
+        admin: false,
+        restart: "",
+        only_if_exists: false,
+        ops: &[reg(r"HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced\TaskbarDeveloperSettings", "TaskbarEndTask", "REG_DWORD", Some("1"), Some("0"))],
+    },
+    Tweak {
+        key: "start_web",
+        icon: "search",
+        title: "Štart hľadá len v PC, nie na Bingu",
+        about: "Vyhľadávanie v Štarte je rýchlejšie a ukáže tvoje súbory a appky, nie webové výsledky. Ide o politiku, v Nastaveniach preto môžeš vidieť „spravované organizáciou“.",
+        effect: "big",
+        category: "w_clean",
+        admin: false,
+        restart: "explorer",
+        only_if_exists: false,
+        ops: &[reg(r"HKCU\Software\Policies\Microsoft\Windows\Explorer", "DisableSearchBoxSuggestions", "REG_DWORD", Some("1"), None)],
+    },
+    Tweak {
+        key: "start_ads",
+        icon: "ad",
+        title: "Bez odporúčaní a reklám v Štarte",
+        about: "Štart prestane ponúkať „odporúčané“ appky a upozornenia na účet Microsoft.",
+        effect: "small",
+        category: "w_clean",
+        admin: false,
+        restart: "",
+        only_if_exists: false,
+        ops: &[
+            reg(r"HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced", "Start_IrisRecommendations", "REG_DWORD", Some("0"), Some("1")),
+            reg(r"HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced", "Start_AccountNotifications", "REG_DWORD", Some("0"), Some("1")),
+        ],
+    },
+    Tweak {
+        key: "lock_ads",
+        icon: "lock",
+        title: "Bez tipov a zaujímavostí na zamknutej obrazovke",
+        about: "Na zamknutej obrazovke ostane len tvoj obrázok a čas.",
+        effect: "small",
+        category: "w_clean",
+        admin: false,
+        restart: "",
+        only_if_exists: false,
+        ops: &[
+            reg(r"HKCU\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager", "RotatingLockScreenOverlayEnabled", "REG_DWORD", Some("0"), Some("1")),
+            reg(r"HKCU\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager", "SubscribedContent-338387Enabled", "REG_DWORD", Some("0"), Some("1")),
+        ],
+    },
+    Tweak {
+        key: "setup_nags",
+        icon: "bell",
+        title: "Bez „Dokončite nastavenie zariadenia“",
+        about: "Po aktualizácii ťa Windows nebude ťahať cez obrazovky s ponukou OneDrive, Microsoft 365 a Game Passu.",
+        effect: "small",
+        category: "w_clean",
+        admin: false,
+        restart: "",
+        only_if_exists: false,
+        ops: &[
+            reg(r"HKCU\Software\Microsoft\Windows\CurrentVersion\UserProfileEngagement", "ScoobeSystemSettingEnabled", "REG_DWORD", Some("0"), Some("1")),
+            reg(r"HKCU\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager", "SubscribedContent-310093Enabled", "REG_DWORD", Some("0"), Some("1")),
+        ],
+    },
+    Tweak {
+        key: "explorer_ads",
+        icon: "ad",
+        title: "Bez reklám v Prieskumníkovi",
+        about: "Prieskumník prestane ukazovať ponuky OneDrive a Microsoft 365.",
+        effect: "small",
+        category: "w_clean",
+        admin: false,
+        restart: "explorer",
+        only_if_exists: false,
+        ops: &[reg(r"HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced", "ShowSyncProviderNotifications", "REG_DWORD", Some("0"), Some("1"))],
+    },
+    Tweak {
+        key: "widgets_off",
+        icon: "layers",
+        title: "Vypnúť Miniaplikácie (Widgets)",
+        about: "Zmizne panel so správami a počasím aj jeho procesy na pozadí. Ide o politiku, platí pre celý počítač.",
+        effect: "small",
+        category: "w_clean",
+        admin: true,
+        restart: "explorer",
+        only_if_exists: false,
+        ops: &[reg(r"HKLM\SOFTWARE\Policies\Microsoft\Dsh", "AllowNewsAndInterests", "REG_DWORD", Some("0"), None)],
+    },
+    Tweak {
+        key: "ad_id",
+        icon: "eye",
+        title: "Vypnúť reklamné ID a „prispôsobené zážitky“",
+        about: "Microsoft podľa nich cieli reklamy a tipy. Vypnutím nič nestratíš.",
+        effect: "small",
+        category: "w_privacy",
+        admin: false,
+        restart: "",
+        only_if_exists: false,
+        ops: &[
+            reg(r"HKCU\Software\Microsoft\Windows\CurrentVersion\AdvertisingInfo", "Enabled", "REG_DWORD", Some("0"), Some("1")),
+            reg(r"HKCU\Software\Microsoft\Windows\CurrentVersion\Privacy", "TailoredExperiencesWithDiagnosticDataEnabled", "REG_DWORD", Some("0"), Some("1")),
+        ],
+    },
+    Tweak {
+        key: "recall_off",
+        icon: "eye",
+        title: "Vypnúť Recall",
+        about: "Recall na Copilot+ PC priebežne fotí obrazovku a ukladá históriu všetkého, čo si robil. Na ostatných PC táto úprava nič nemení.",
+        effect: "small",
+        category: "w_privacy",
+        admin: false,
+        restart: "logoff",
+        only_if_exists: false,
+        ops: &[reg(r"HKCU\Software\Policies\Microsoft\Windows\WindowsAI", "DisableAIDataAnalysis", "REG_DWORD", Some("1"), None)],
+    },
+    Tweak {
+        key: "no_driver_updates",
+        icon: "gpu",
+        title: "Windows Update nesmie meniť ovládače",
+        about: "Windows rád nainštaluje starší ovládač grafiky cez ten tvoj. Po zapnutí si ovládače (grafika, čipová sada, Wi-Fi) aktualizuješ sám od výrobcu.",
+        effect: "big",
+        category: "w_update",
+        admin: true,
+        restart: "",
+        only_if_exists: false,
+        ops: &[reg(r"HKLM\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate", "ExcludeWUDriversInQualityUpdate", "REG_DWORD", Some("1"), None)],
+    },
+    Tweak {
+        key: "no_auto_restart",
+        icon: "restart",
+        title: "Nereštartovať sám, keď som prihlásený",
+        about: "Po aktualizácii ti Windows dá vedieť, ale nereštartuje počítač, kým si prihlásený. Žiadna stratená práca ani prerušený render cez noc.",
+        effect: "big",
+        category: "w_update",
+        admin: true,
+        restart: "",
+        only_if_exists: false,
+        ops: &[reg(r"HKLM\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU", "NoAutoRebootWithLoggedOnUsers", "REG_DWORD", Some("1"), None)],
+    },
+    Tweak {
+        key: "fast_startup_off",
+        icon: "power",
+        title: "Vypnúť Rýchle spustenie",
+        about: "Vypnutie PC potom znamená naozajstné vypnutie. Menej záhadných problémov s ovládačmi a aktualizáciami, funguje aj dual-boot. Na SSD štartuje PC skoro rovnako rýchlo.",
+        effect: "small",
+        category: "w_update",
+        admin: true,
+        restart: "",
+        only_if_exists: true,
+        ops: &[reg(r"HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Power", "HiberbootEnabled", "REG_DWORD", Some("0"), Some("1"))],
+    },
+    Tweak {
+        key: "clipboard_history",
+        icon: "clipboard",
+        title: "História schránky (Win + V)",
+        about: "Win + V ukáže posledné veci, ktoré si skopíroval, aj obrázky. Dajú sa pripnúť.",
+        effect: "big",
+        category: "w_features",
+        admin: false,
+        restart: "",
+        only_if_exists: false,
+        ops: &[reg(r"HKCU\Software\Microsoft\Clipboard", "EnableClipboardHistory", "REG_DWORD", Some("1"), Some("0"))],
+    },
+    Tweak {
+        key: "storage_sense",
+        icon: "broom",
+        title: "Senzor úložiska",
+        about: "Windows sám maže dočasné súbory a obsah Koša starší ako 30 dní, keď dochádza miesto.",
+        effect: "small",
+        category: "w_features",
+        admin: false,
+        restart: "",
+        only_if_exists: false,
+        ops: &[reg(r"HKCU\Software\Microsoft\Windows\CurrentVersion\StorageSense\Parameters\StoragePolicy", "01", "REG_DWORD", Some("1"), Some("0"))],
     },
 ];
 
@@ -241,25 +505,24 @@ pub fn commands(t: &Tweak, enable: bool) -> Vec<Cmd> {
         .iter()
         .map(|op| match op {
             Op::Reg(r) => match if enable { r.on } else { r.off } {
-                Some(v) => Cmd {
-                    exe: "reg",
-                    args: vec![
-                        "add".into(),
-                        r.key.into(),
-                        "/v".into(),
-                        r.name.into(),
-                        "/t".into(),
-                        r.ty.into(),
-                        "/d".into(),
-                        v.into(),
-                        "/f".into(),
-                    ],
-                    ignore_err: false,
-                },
-                None => Cmd {
-                    exe: "reg",
-                    args: vec!["delete".into(), r.key.into(), "/v".into(), r.name.into(), "/f".into()],
-                    ignore_err: true,
+                Some(v) => {
+                    // An empty name means the key's default value.
+                    let mut args: Vec<String> = vec!["add".into(), r.key.into()];
+                    if r.name.is_empty() {
+                        args.push("/ve".into());
+                    } else {
+                        args.extend(["/v".into(), r.name.into()]);
+                    }
+                    args.extend(["/t".into(), r.ty.into(), "/d".into(), v.into(), "/f".into()]);
+                    Cmd { exe: "reg", args, ignore_err: false }
+                }
+                None => match r.delete_key {
+                    Some(k) => Cmd { exe: "reg", args: vec!["delete".into(), k.into(), "/f".into()], ignore_err: true },
+                    None => Cmd {
+                        exe: "reg",
+                        args: vec!["delete".into(), r.key.into(), "/v".into(), r.name.into(), "/f".into()],
+                        ignore_err: true,
+                    },
                 },
             },
             Op::PowerPlan => Cmd {
@@ -286,6 +549,7 @@ pub fn same_value(ty: &str, current: &str, ours: &str) -> bool {
 #[derive(Serialize, Clone, Debug)]
 pub struct State {
     pub key: &'static str,
+    pub icon: &'static str,
     pub title: &'static str,
     pub about: &'static str,
     pub effect: &'static str,
@@ -326,6 +590,7 @@ pub fn states(read: impl Fn(&str, &str) -> Option<String>, power: Option<String>
             }
             State {
                 key: t.key,
+                icon: t.icon,
                 title: t.title,
                 about: t.about,
                 effect: t.effect,
@@ -343,16 +608,23 @@ pub fn states(read: impl Fn(&str, &str) -> Option<String>, power: Option<String>
 pub fn list() -> Vec<State> {
     use std::os::windows::process::CommandExt;
     let read = |key: &str, name: &str| -> Option<String> {
-        let o = std::process::Command::new("reg")
-            .args(["query", key, "/v", name])
-            .creation_flags(0x0800_0000)
-            .output()
-            .ok()?;
+        let mut cmd = std::process::Command::new("reg");
+        cmd.args(["query", key]);
+        if name.is_empty() {
+            cmd.arg("/ve");
+        } else {
+            cmd.args(["/v", name]);
+        }
+        let o = cmd.creation_flags(0x0800_0000).output().ok()?;
         if !o.status.success() {
             return None;
         }
-        crate::autostart::parse_reg_query(&String::from_utf8_lossy(&o.stdout))
-            .into_iter()
+        let vals = crate::autostart::parse_reg_query(&String::from_utf8_lossy(&o.stdout));
+        if name.is_empty() {
+            // "(Default)" is localized, e.g. "(Predvolené)".
+            return vals.into_iter().next().map(|(_, v)| v);
+        }
+        vals.into_iter()
             .find(|(n, _)| n.eq_ignore_ascii_case(name))
             .map(|(_, v)| v)
     };
@@ -381,6 +653,21 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn classic_menu_marker() {
+        let t = find("classic_menu").unwrap();
+        let on = commands(t, true);
+        assert!(on[0].args.contains(&"/ve".to_string()));
+        assert_eq!(on[0].args.last().unwrap(), "/f");
+        let off = commands(t, false);
+        assert_eq!(off[0].args, vec!["delete", r"HKCU\Software\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}", "/f"]);
+        let s = states(|k, n| (k.ends_with("InprocServer32") && n.is_empty()).then(String::new), None);
+        assert!(s.iter().find(|x| x.key == "classic_menu").unwrap().on);
+        assert!(TWEAKS.iter().all(|t| !t.icon.is_empty()));
+        let keys: std::collections::HashSet<_> = TWEAKS.iter().map(|t| t.key).collect();
+        assert_eq!(keys.len(), TWEAKS.len(), "duplicate tweak keys");
     }
 
     #[test]

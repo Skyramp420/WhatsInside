@@ -339,6 +339,20 @@ pub struct Facts {
     pub has_battery: bool,
     /// Memory integrity (Core isolation / HVCI) configured on.
     pub hvci: Option<bool>,
+    /// Personal folders that OneDrive took over ("Plocha", "Dokumenty", …).
+    pub onedrive_folders: Vec<String>,
+}
+
+/// Which user folders point into OneDrive, from `User Shell Folders`.
+pub fn onedrive_folders(vals: &[RegValue]) -> Vec<String> {
+    [("Desktop", "Plocha"), ("Personal", "Dokumenty"), ("My Pictures", "Obrázky"), ("My Music", "Hudba"), ("My Video", "Videá")]
+        .iter()
+        .filter(|(k, _)| {
+            vals.iter()
+                .any(|v| v.name.eq_ignore_ascii_case(k) && v.data.to_lowercase().contains("onedrive"))
+        })
+        .map(|(_, label)| label.to_string())
+        .collect()
 }
 
 /// Windows 11 still reports "Windows 10" in ProductName; the build tells the truth.
@@ -449,7 +463,10 @@ mod platform {
             r"HKLM\SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\HypervisorEnforcedCodeIntegrity",
             &["/v", "Enabled"],
         );
+        let shell = reg(r"HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders", &[]);
+        let shell_vals: Vec<RegValue> = shell.into_iter().flat_map(|(_, v)| v).collect();
         Facts {
+            onedrive_folders: onedrive_folders(&shell_vals),
             has_battery,
             hvci: value(&hvci, "Enabled").and_then(reg_number).map(|v| v != 0),
             power_guid,
@@ -748,5 +765,12 @@ mod tests {
         assert_eq!(channel_of("ChannelB-DIMM0").as_deref(), Some("B"));
         assert_eq!(channel_of("A1").as_deref(), Some("A"));
         assert_eq!(channel_of("DIMM 0"), None);
+    }
+
+    #[test]
+    fn spots_onedrive_folders() {
+        let v = |n: &str, d: &str| RegValue { name: n.into(), kind: "REG_EXPAND_SZ".into(), data: d.into() };
+        let vals = vec![v("Desktop", r"C:\Users\A\OneDrive\Plocha"), v("Personal", r"%USERPROFILE%\Documents"), v("My Pictures", r"C:\Users\A\OneDrive\Obrázky")];
+        assert_eq!(onedrive_folders(&vals), vec!["Plocha", "Obrázky"]);
     }
 }

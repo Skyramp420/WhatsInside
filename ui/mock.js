@@ -64,24 +64,49 @@
   const A = (o) => ({ exe: null, app: null, about: null, advice: null, running: null, hidden: false, needs_admin: false, enabled: true, toggle: { t: 'approved', hive: 'HKCU', key: 'x', name: o.name }, ...o });
   const mockChanges = [];
   const mockBench = { phase: 'idle' };
+  const mockApps = [
+    { name: 'Clipchamp.Clipchamp', full: 'Clipchamp.Clipchamp_3.1_neutral__yxz', title: 'Clipchamp', about: 'Jednoduchý strihač videa od Microsoftu.', junk: true },
+    { name: 'Microsoft.BingNews', full: 'Microsoft.BingNews_4_x64__8we', title: 'Správy', about: 'Microsoft Start, správy s reklamami.', junk: true },
+    { name: 'Microsoft.MicrosoftSolitaireCollection', full: 'Microsoft.MicrosoftSolitaireCollection_4_x64__8we', title: 'Solitaire', about: 'Kartové hry s reklamami a predplatným.', junk: true },
+    { name: 'Microsoft.MicrosoftOfficeHub', full: 'Microsoft.MicrosoftOfficeHub_18_x64__8we', title: 'Microsoft 365 (Office)', about: 'Len rozcestník a ponuka predplatného. Nainštalovaný Word ani Excel neodinštaluje.', junk: true },
+    { name: 'Microsoft.BingWeather', full: 'Microsoft.BingWeather_4_x64__8we', title: 'Počasie', about: 'Ak počasie pozeráš v mobile, netreba.', junk: false },
+    { name: 'Microsoft.YourPhone', full: 'Microsoft.YourPhone_1_x64__8we', title: 'Prepojenie s telefónom', about: 'Správy a fotky z mobilu na PC.', junk: false },
+  ];
   const mockRuns = [
     { id: Date.now() - 864e5, exe: 'Cyberpunk2077.exe', label: 'Pred zmenou', seconds: 60, frames: 5400, avg_fps: 88.1, low1: 61.4, low01: 48.2, frametime: 11.35, cpu_busy: 4.2, gpu_busy: 11.1, bound: 'gpu', gpu: { name: 'NVIDIA GeForce RTX 4070 SUPER', temp_avg: 80, temp_max: 88, clock_avg: 2380, clock_max: 3105, load_avg: 99, power_avg: 205, power_limit: 220, thermal_share: 0.18, power_cap_share: 0.3, samples: 40 } },
   ];
-  const T = (key, title, about, effect, category, admin, restart, on) => ({ key, title, about, effect, category, admin, restart, on, available: true });
+  const T = (key, title, about, effect, category, admin, restart, on, icon = 'sparkle') => ({ key, title, about, effect, category, admin, restart, on, icon, available: true });
   const mockTweaks = [
-    T('startup_delay', 'Spúšťať appky po prihlásení hneď', 'Windows po prihlásení čaká niekoľko sekúnd, kým spustí appky zo spúšťania. Na SSD je to čakanie zbytočné, plocha je skôr použiteľná.', 'big', 'responsive', false, '', false),
-    T('menu_delay', 'Rýchlejšie podponuky', 'Windows čaká 0,4 s, kým otvorí podponuku. Takto stačí 0,1 s, menu pôsobia svižnejšie.', 'small', 'responsive', false, 'logoff', false),
-    T('power_plan', 'Plán napájania Vysoký výkon', 'Procesor menej zaspáva a rýchlejšie reaguje. Na stolnom PC je rozdiel malý, ale merateľný v odozve. Na notebooku viac vybíja batériu.', 'small', 'responsive', false, '', false),
-    T('game_dvr', 'Vypnúť nahrávanie hier na pozadí', 'Xbox Game Bar vie stále nahrávať posledné minúty hry, čo zaberá grafiku. Ak klipy robíš inou appkou alebo vôbec, netreba to.', 'big', 'games', false, '', false),
-    T('game_mode', 'Herný režim', 'Počas hry Windows odkladá aktualizácie a dáva hre prednosť. Na dnešných PC neškodí, odporúčam mať zapnutý.', 'small', 'games', false, '', true),
-    T('hags', 'Hardvérové plánovanie GPU (HAGS)', 'Grafika si sama plánuje prácu, čo trochu znižuje oneskorenie. Na NVIDIA RTX 40 a novších ho potrebuje Frame Generation (DLSS 3 a 4).', 'small', 'games', true, 'reboot', false),
-    T('hvci_off', 'Vypnúť integritu pamäte (HVCI)', 'Bezpečnostná funkcia Windowsu, ktorá v hrách berie zhruba 5 % výkonu, na starších procesoroch aj viac. Vypnutím sa PC stáva o niečo zraniteľnejším.', 'big', 'games', true, 'reboot', false),
-    T('mouse_accel', 'Vypnúť zrýchlenie myši', 'Kurzor sa posunie o rovnaký kus podľa toho, kam myšou pohneš, nie podľa toho, ako rýchlo.', 'small', 'games', false, 'logoff', false),
-    T('background_apps', 'Zakázať appkám zo Storu beh na pozadí', 'Appky z Microsoft Store nebudú bežať na pozadí a ich upozornenia môžu chodiť neskôr.', 'small', 'background', false, '', false),
-    T('edge_boost', 'Edge sa neprednačítava a po zavretí nebeží', 'Edge sa spúšťa už so štartom Windowsu a beží aj po zavretí okna.', 'small', 'background', true, '', false),
-    T('tips', 'Vypnúť tipy a návrhy Windowsu', 'Žiadne „Tipy na používanie Windowsu“, návrhy v Štarte ani v Nastaveniach.', 'small', 'background', false, '', false),
-    T('transparency', 'Vypnúť priehľadnosť', 'Pomôže na slabších PC a notebookoch s integrovanou grafikou.', 'small', 'looks', false, '', false),
-    T('min_animate', 'Okná bez animácie pri minimalizovaní', 'Okná sa minimalizujú a obnovujú hneď.', 'small', 'looks', false, 'logoff', false),
+    T('classic_menu', 'Klasické kontextové menu', 'Pravý klik hneď ukáže všetky možnosti, bez „Zobraziť ďalšie možnosti“.', 'big', 'w_explorer', false, 'explorer', false, 'menu'),
+    T('file_ext', 'Zobrazovať prípony súborov', 'Uvidíš, či je súbor .jpg, .png alebo .exe.', 'big', 'w_explorer', false, 'explorer', false, 'file'),
+    T('explorer_thispc', 'Prieskumník otvárať na Tento počítač', 'Namiesto stránky Domov uvidíš hneď disky.', 'small', 'w_explorer', false, '', false, 'pc'),
+    T('taskbar_left', 'Panel úloh zarovnaný doľava', 'Štart a appky vľavo ako vo Windowse 10.', 'small', 'w_explorer', false, '', false, 'taskbar'),
+    T('end_task', '„Ukončiť úlohu“ v paneli úloh', 'Pravý klik na appku v paneli úloh ju ukončí.', 'big', 'w_explorer', false, '', false, 'x'),
+    T('start_web', 'Štart hľadá len v PC, nie na Bingu', 'Vyhľadávanie v Štarte je rýchlejšie a ukáže tvoje súbory a appky.', 'big', 'w_clean', false, 'explorer', false, 'search'),
+    T('start_ads', 'Bez odporúčaní a reklám v Štarte', 'Štart prestane ponúkať „odporúčané“ appky.', 'small', 'w_clean', false, '', false, 'ad'),
+    T('lock_ads', 'Bez tipov na zamknutej obrazovke', 'Ostane len tvoj obrázok a čas.', 'small', 'w_clean', false, '', false, 'lock'),
+    T('setup_nags', 'Bez „Dokončite nastavenie zariadenia“', 'Žiadne ponuky OneDrive a Microsoft 365 po aktualizácii.', 'small', 'w_clean', false, '', false, 'bell'),
+    T('widgets_off', 'Vypnúť Miniaplikácie (Widgets)', 'Zmizne panel so správami a počasím.', 'small', 'w_clean', true, 'explorer', false, 'layers'),
+    T('ad_id', 'Vypnúť reklamné ID', 'Microsoft podľa neho cieli reklamy.', 'small', 'w_privacy', false, '', false, 'eye'),
+    T('no_driver_updates', 'Windows Update nesmie meniť ovládače', 'Windows rád nainštaluje starší ovládač grafiky cez ten tvoj.', 'big', 'w_update', true, '', false, 'gpu'),
+    T('no_auto_restart', 'Nereštartovať sám, keď som prihlásený', 'Žiadna stratená práca ani prerušený render cez noc.', 'big', 'w_update', true, '', false, 'restart'),
+    T('fast_startup_off', 'Vypnúť Rýchle spustenie', 'Vypnutie PC potom znamená naozajstné vypnutie.', 'small', 'w_update', true, '', false, 'power'),
+    T('clipboard_history', 'História schránky (Win + V)', 'Win + V ukáže posledné veci, ktoré si skopíroval.', 'big', 'w_features', false, '', false, 'clipboard'),
+    T('storage_sense', 'Senzor úložiska', 'Windows sám maže dočasné súbory a starý Kôš.', 'small', 'w_features', false, '', true, 'broom'),
+
+    T('startup_delay', 'Spúšťať appky po prihlásení hneď', 'Windows po prihlásení čaká niekoľko sekúnd, kým spustí appky zo spúšťania. Na SSD je to čakanie zbytočné, plocha je skôr použiteľná.', 'big', 'responsive', false, '', false, 'rocket'),
+    T('menu_delay', 'Rýchlejšie podponuky', 'Windows čaká 0,4 s, kým otvorí podponuku. Takto stačí 0,1 s, menu pôsobia svižnejšie.', 'small', 'responsive', false, 'logoff', false, 'menu'),
+    T('power_plan', 'Plán napájania Vysoký výkon', 'Procesor menej zaspáva a rýchlejšie reaguje. Na stolnom PC je rozdiel malý, ale merateľný v odozve. Na notebooku viac vybíja batériu.', 'small', 'responsive', false, '', false, 'bolt'),
+    T('game_dvr', 'Vypnúť nahrávanie hier na pozadí', 'Xbox Game Bar vie stále nahrávať posledné minúty hry, čo zaberá grafiku. Ak klipy robíš inou appkou alebo vôbec, netreba to.', 'big', 'games', false, '', false, 'video'),
+    T('game_mode', 'Herný režim', 'Počas hry Windows odkladá aktualizácie a dáva hre prednosť. Na dnešných PC neškodí, odporúčam mať zapnutý.', 'small', 'games', false, '', true, 'game'),
+    T('hags', 'Hardvérové plánovanie GPU (HAGS)', 'Grafika si sama plánuje prácu, čo trochu znižuje oneskorenie. Na NVIDIA RTX 40 a novších ho potrebuje Frame Generation (DLSS 3 a 4).', 'small', 'games', true, 'reboot', false, 'gpu'),
+    T('hvci_off', 'Vypnúť integritu pamäte (HVCI)', 'Bezpečnostná funkcia Windowsu, ktorá v hrách berie zhruba 5 % výkonu, na starších procesoroch aj viac. Vypnutím sa PC stáva o niečo zraniteľnejším.', 'big', 'games', true, 'reboot', false, 'shield'),
+    T('mouse_accel', 'Vypnúť zrýchlenie myši', 'Kurzor sa posunie o rovnaký kus podľa toho, kam myšou pohneš, nie podľa toho, ako rýchlo.', 'small', 'games', false, 'logoff', false, 'mouse'),
+    T('background_apps', 'Zakázať appkám zo Storu beh na pozadí', 'Appky z Microsoft Store nebudú bežať na pozadí a ich upozornenia môžu chodiť neskôr.', 'small', 'background', false, '', false, 'app'),
+    T('edge_boost', 'Edge sa neprednačítava a po zavretí nebeží', 'Edge sa spúšťa už so štartom Windowsu a beží aj po zavretí okna.', 'small', 'background', true, '', false, 'globe'),
+    T('tips', 'Vypnúť tipy a návrhy Windowsu', 'Žiadne „Tipy na používanie Windowsu“, návrhy v Štarte ani v Nastaveniach.', 'small', 'background', false, '', false, 'bell'),
+    T('transparency', 'Vypnúť priehľadnosť', 'Pomôže na slabších PC a notebookoch s integrovanou grafikou.', 'small', 'looks', false, '', false, 'layers'),
+    T('min_animate', 'Okná bez animácie pri minimalizovaní', 'Okná sa minimalizujú a obnovujú hneď.', 'small', 'looks', false, 'logoff', false, 'window'),
   ];
 
   const mockAuto = [
@@ -124,6 +149,7 @@
 
   window.WIMock = {
     async invoke(cmd, args) {
+      if (window.MOCK_DELAY) await new Promise((r) => setTimeout(r, Math.random() * window.MOCK_DELAY));
       await new Promise((r) => setTimeout(r, 40));
       switch (cmd) {
         case 'storage_drives': return [
@@ -182,7 +208,7 @@
             { id: 0, path: 'C:\\Users\\Alex\\Downloads\\DaVinci_Resolve_19.1_Windows.zip', size: 3.2 * GB, age_days: 95, reason: 'installer' },
           ],
         };
-        case 'system_facts': return { hvci: true, power_guid: '381b4222-f694-41f0-9685-ff5bb260df2e', power_name: 'Vyvážený', game_mode: true, hags: false, hibernation: true, hiberfil_bytes: 25.4 * GB, os: 'Windows 11 Home 24H2', build: 26100, has_battery: false };
+        case 'system_facts': return { onedrive_folders: ['Plocha', 'Dokumenty'], hvci: true, power_guid: '381b4222-f694-41f0-9685-ff5bb260df2e', power_name: 'Vyvážený', game_mode: true, hags: false, hibernation: true, hiberfil_bytes: 25.4 * GB, os: 'Windows 11 Home 24H2', build: 26100, has_battery: false };
         case 'pc_specs': return {
           cpu: 'AMD Ryzen 7 2700 Eight-Core Processor', threads: 16,
           gpus: [{ name: 'NVIDIA GeForce RTX 4070 SUPER', vram: 12 * GB, driver_date: '1-15-2026', driver_version: '32.0.15.9144' }],
@@ -221,6 +247,7 @@
           { label: 'NVIDIA DirectX', path: 'C:\\Users\\Alex\\AppData\\Local\\NVIDIA\\DXCache', size: 3.9 * GB },
           { label: 'Windows (DirectX)', path: 'C:\\Users\\Alex\\AppData\\Local\\D3DSCache', size: 0.4 * GB },
         ];
+        case 'appx_list': return mockApps;
         case 'tweaks_list': return mockTweaks.map((t) => ({ ...t }));
         case 'save_card': return 'C:\\Users\\Alex\\Pictures\\WhatsInside\\WhatsInside-PC-1760900000.png';
         case 'procs_snapshot': return procs();
@@ -228,6 +255,8 @@
         case 'changes_list': return mockChanges;
         case 'changes_undo': { const c = mockChanges[args.index]; c.undone = true; const it = mockAuto.find((x) => x.id === c.id); if (it) it.enabled = !c.enabled; const tw = c.toggle && mockTweaks.find((x) => 'tweak:' + x.key === c.id); if (tw) tw.on = !c.enabled; return null; }
         case 'actions_apply': return args.actions.map((a) => {
+          if (a.op === 'restart_explorer' || a.op === 'launch') return { ok: true, error: null, elevated: false };
+          if (a.op === 'uninstall') { const i = mockApps.findIndex((x) => x.full === a.full); if (i >= 0) mockApps.splice(i, 1); mockChanges.push({ at: Date.now() / 1000, id: 'appx:' + a.full.split('_')[0], name: a.name, toggle: null, enabled: false, undone: false }); return { ok: true, error: null, elevated: false }; }
           if (a.op === 'kill') { mockChanges.push({ at: Date.now() / 1000, id: 'kill:' + a.pid, name: a.exe, toggle: null, enabled: false, undone: false }); return { ok: true, error: null, elevated: false }; }
           if (a.toggle.t === 'tweak') { const t = mockTweaks.find((x) => x.key === a.toggle.key); if (t) t.on = a.enable; }
           const it = mockAuto.find((x) => x.id === a.id); if (it) it.enabled = a.enable;

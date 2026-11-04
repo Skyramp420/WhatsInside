@@ -613,3 +613,61 @@ h3.cat{font-size:12px;font-weight:620;color:var(--muted);text-transform:uppercas
 .others span{color:var(--muted)}
 .others p{margin:8px 0 0;color:var(--muted)}
 @media (max-width:900px){.run .nums{grid-template-columns:repeat(2,1fr)}}
+
+/* v0.7: scan art, row icons */
+.scanning.withart{display:grid;grid-template-columns:210px minmax(0,1fr);gap:26px;align-items:center}
+.scanning.withart .title{font:650 17px var(--display)}
+.artbox{display:grid;place-items:center}
+.scanart{width:210px;height:auto;overflow:visible}
+.sa-shadow{fill:var(--shadow);opacity:.5}
+.sa-frame{fill:var(--panel);stroke:var(--muted);stroke-width:2.2;stroke-linejoin:round}
+.sa-screen{fill:var(--well)}
+.sa-t{fill:var(--fill2);animation:saTile 2.4s var(--ease) infinite}
+@keyframes saTile{0%,100%{fill:var(--fill2)}35%{fill:color-mix(in srgb,var(--accent) 60%,var(--fill2))}}
+.sa-line{stroke:var(--faint);stroke-width:2;stroke-linecap:round;fill:none}
+.sa-slot{fill:var(--fill)}
+.sa-led{fill:var(--mint);animation:saBlink 1.2s steps(2,jump-none) infinite}
+@keyframes saBlink{50%{opacity:.25}}
+.sa-mag{animation:saMove 6s cubic-bezier(.45,0,.55,1) infinite}
+@keyframes saMove{0%,100%{transform:translate(64px,62px)}20%{transform:translate(120px,84px)}42%{transform:translate(192px,60px)}64%{transform:translate(150px,108px)}82%{transform:translate(96px,48px)}}
+.sa-tilt{animation:saTilt 3s ease-in-out infinite alternate}
+@keyframes saTilt{from{transform:rotate(-10deg)}to{transform:rotate(12deg)}}
+.sa-glass{stroke:none}
+.sa-rim{fill:none;stroke:var(--text);stroke-width:5}
+.sa-glint{fill:none;stroke:#fff;stroke-opacity:.9;stroke-width:3;stroke-linecap:round}
+.sa-handle{fill:none;stroke:var(--accent);stroke-width:9;stroke-linecap:round}
+.sa-spark{fill:var(--accent);transform-box:fill-box;transform-origin:center;opacity:0;animation:saSpark 2.6s var(--ease) infinite}
+@keyframes saSpark{0%,100%{transform:scale(0) rotate(0);opacity:0}25%{transform:scale(1) rotate(45deg);opacity:1}55%{transform:scale(.2) rotate(90deg);opacity:0}}
+body.idle .scanart *{animation-play-state:paused}
+@media (prefers-reduced-motion:reduce){.scanart *{animation:none!important}}
+.checks{list-style:none;margin:12px 0 0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:6px 18px;font-size:12.5px;color:var(--muted)}
+.checks li{display:flex;align-items:center;gap:8px;transition:color .3s}
+.checks .ck{width:16px;height:16px;border-radius:50%;border:1.6px solid var(--fill);display:grid;place-items:center;flex:none;position:relative}
+.checks li:not(.done) .ck::after{content:"";position:absolute;inset:-2px;border-radius:50%;border:1.6px solid transparent;border-top-color:var(--accent);animation:spin .9s linear infinite}
+.checks li.done{color:var(--text)}
+.checks li.done .ck{background:var(--mint);border-color:var(--mint);animation:pop .4s var(--spring)}
+.checks li.done .ck::before{content:"";width:7px;height:4px;border:solid #fff;border-width:0 0 1.8px 1.8px;transform:rotate(-45deg) translate(1px,-1px)}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes pop{from{transform:scale(.4)}}
+.srow.withicon,.hrow{grid-template-columns:34px minmax(0,1fr) auto}
+.hrow{grid-template-columns:34px minmax(0,1fr) 54px 80px}
+.prow2.withicon{grid-template-columns:auto minmax(0,1fr) auto}
+.ricon{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;background:var(--fill2);flex:none}
+.ricon svg{width:16px;height:16px;stroke:var(--muted);stroke-width:1.6;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.srow.withicon:not(.isoff) .ricon{background:color-mix(in srgb,var(--accent) 14%,transparent)}
+.srow.withicon:not(.isoff) .ricon svg{stroke:var(--accent)}
+.srow.v-rgb:not(.isoff) .ricon{background:color-mix(in srgb,var(--lilac) 15%,transparent)}
+.srow.v-rgb:not(.isoff) .ricon svg{stroke:var(--lilac)}
+.srow.v-system .ricon svg,.srow.v-needed .ricon svg{stroke:var(--muted)!important}
+.srow.v-system .ricon,.srow.v-needed .ricon{background:var(--fill2)!important}
+.ricon.s-mint{background:color-mix(in srgb,var(--mint) 15%,transparent)}.ricon.s-mint svg{stroke:var(--mint)}
+.ricon.s-amber{background:color-mix(in srgb,var(--amber) 15%,transparent)}.ricon.s-amber svg{stroke:var(--amber)}
+.ricon.s-rec{background:color-mix(in srgb,var(--rec) 13%,transparent)}.ricon.s-rec svg{stroke:var(--rec)}
+h3.cat{display:flex;align-items:center;gap:7px}
+h3.cat svg{width:14px;height:14px;stroke:var(--accent);stroke-width:1.7;fill:none;stroke-linecap:round;stroke-linejoin:round}
+@media (max-width:900px){.scanning.withart{grid-template-columns:1fr}.artbox{justify-self:start}}
+.prow .gicon{width:24px;height:24px;border-radius:7px;display:grid;place-items:center;background:var(--fill2);flex:none}
+.prow .gicon svg{width:13px;height:13px;stroke:var(--muted);stroke-width:1.7;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.prow .gicon.v-rgb{background:color-mix(in srgb,var(--lilac) 15%,transparent)}.prow .gicon.v-rgb svg{stroke:var(--lilac)}
+.prow .gicon.v-optional{background:color-mix(in srgb,var(--amber) 15%,transparent)}.prow .gicon.v-optional svg{stroke:var(--amber)}
+.prow .gicon.v-peripheral{background:color-mix(in srgb,var(--blue) 14%,transparent)}.prow .gicon.v-peripheral svg{stroke:var(--blue)}

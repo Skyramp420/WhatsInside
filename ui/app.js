@@ -54,6 +54,24 @@ const ICON = {
   cpu: '<svg viewBox="0 0 16 16"><rect x="4" y="4" width="8" height="8" rx="1.6"/><path d="M6.5 1.5V4M9.5 1.5V4M6.5 12v2.5M9.5 12v2.5M1.5 6.5H4M1.5 9.5H4M12 6.5h2.5M12 9.5h2.5"/></svg>',
   board: '<svg viewBox="0 0 16 16"><rect x="2" y="2" width="12" height="12" rx="1.6"/><rect x="5" y="5" width="4" height="4" rx=".6"/><path d="M11 5v2M11 9v2M5 11h4"/></svg>',
   os: '<svg viewBox="0 0 16 16"><path d="M2 3.5l5-.7v4.7H2zM8 2.7l6-.9v5.7H8zM2 8.5h5v4.7l-5-.7zM8 8.5h6v5.7l-6-.9z"/></svg>',
+  menu: '<svg viewBox="0 0 16 16"><rect x="2.5" y="2" width="11" height="12" rx="2"/><path d="M5 5.5h6M5 8h6M5 10.5h4"/></svg>',
+  pc: '<svg viewBox="0 0 16 16"><rect x="1.5" y="2.5" width="9" height="7" rx="1.4"/><path d="M4.5 12.5h3M6 9.5v3"/><rect x="11.5" y="2.5" width="3" height="10" rx="1"/></svg>',
+  taskbar: '<svg viewBox="0 0 16 16"><rect x="1.5" y="2.5" width="13" height="11" rx="2"/><path d="M1.5 10.5h13M4 12h1.5M7 12h1.5"/></svg>',
+  ad: '<svg viewBox="0 0 16 16"><rect x="1.5" y="3" width="13" height="10" rx="2"/><path d="M4.2 10.3L5.7 5.7l1.5 4.6M4.7 8.9h2M9.3 5.7v4.6h1.1c1.2 0 2-.9 2-2.3s-.8-2.3-2-2.3z"/></svg>',
+  lock: '<svg viewBox="0 0 16 16"><rect x="3" y="7" width="10" height="7" rx="1.8"/><path d="M5.3 7V5.2a2.7 2.7 0 0 1 5.4 0V7"/></svg>',
+  bell: '<svg viewBox="0 0 16 16"><path d="M4 10.5V7.3a4 4 0 0 1 8 0v3.2l1.2 1.6H2.8zM6.6 13.8a1.5 1.5 0 0 0 2.8 0"/></svg>',
+  layers: '<svg viewBox="0 0 16 16"><path d="M8 2l6 3-6 3-6-3zM2 8l6 3 6-3M2 11l6 3 6-3"/></svg>',
+  eye: '<svg viewBox="0 0 16 16"><path d="M1.5 8S4 3.5 8 3.5 14.5 8 14.5 8 12 12.5 8 12.5 1.5 8 1.5 8z"/><circle cx="8" cy="8" r="2"/></svg>',
+  restart: '<svg viewBox="0 0 16 16"><path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9M13.5 2.5v3h-3"/></svg>',
+  power: '<svg viewBox="0 0 16 16"><path d="M8 1.8v5.4"/><path d="M4.4 4.1a5.3 5.3 0 1 0 7.2 0"/></svg>',
+  clipboard: '<svg viewBox="0 0 16 16"><rect x="3" y="3" width="10" height="11.5" rx="1.8"/><path d="M6 3V2h4v1M5.5 7h5M5.5 9.5h5M5.5 12h3"/></svg>',
+  shield: '<svg viewBox="0 0 16 16"><path d="M8 1.6l5 2v4c0 3.2-2.1 5.7-5 6.8-2.9-1.1-5-3.6-5-6.8v-4z"/></svg>',
+  mouse: '<svg viewBox="0 0 16 16"><path d="M8 1.5c2.5 0 4 1.8 4 4.5v4c0 2.5-1.6 4.5-4 4.5s-4-2-4-4.5V6c0-2.7 1.5-4.5 4-4.5z M8 4v2.5"/></svg>',
+  globe: '<svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.2"/><path d="M1.8 8h12.4M8 1.8c1.8 1.7 2.7 3.8 2.7 6.2S9.8 12.5 8 14.2C6.2 12.5 5.3 10.4 5.3 8S6.2 3.5 8 1.8z"/></svg>',
+  window: '<svg viewBox="0 0 16 16"><rect x="1.8" y="2.5" width="12.4" height="11" rx="1.8"/><path d="M1.8 5.5h12.4M4 4h.01M5.8 4h.01"/></svg>',
+  trash: '<svg viewBox="0 0 16 16"><path d="M2.5 4.5h11M6 4.5V3h4v1.5M4 4.5l.7 9a1 1 0 0 0 1 .9h4.6a1 1 0 0 0 1-.9l.7-9"/></svg>',
+  sparkle: '<svg viewBox="0 0 16 16"><path d="M8 1.5Q8.6 7.4 14.5 8 8.6 8.6 8 14.5 7.4 8.6 1.5 8 7.4 7.4 8 1.5z"/></svg>',
+  win: '<svg viewBox="0 0 16 16"><path d="M2 2.5h5.3v5.3H2zM8.7 2.5H14v5.3H8.7zM2 8.2h5.3v5.3H2zM8.7 8.2H14v5.3H8.7z"/></svg>',
   monitor: '<svg viewBox="0 0 16 16"><rect x="1.5" y="2.5" width="13" height="8.5" rx="1.5"/><path d="M6 14h4M8 11v3"/></svg>',
   video: '<svg viewBox="0 0 16 16"><rect x="1.5" y="3.5" width="9.5" height="9" rx="1.8"/><path d="M11 7l3.5-2v6L11 9"/></svg>',
   image: '<svg viewBox="0 0 16 16"><rect x="1.8" y="2.5" width="12.4" height="11" rx="1.8"/><circle cx="5.6" cy="6.2" r="1.2"/><path d="M2 12l3.8-3.5 2.6 2.3 2.4-2.1 3.4 3"/></svg>',
@@ -253,10 +271,11 @@ function renderStorage() {
     const used = st.drive ? st.drive.total - st.drive.free : 0;
     const p = used ? Math.min(0.99, s.bytes / used) : null;
     if (!$('#scanCard')) {
-      body.innerHTML = `<div class="card scanning land" id="scanCard">
-        <div class="title"><span class="dot amber pulse"></span>Skenujem ${esc(s.root)}</div>
+      body.innerHTML = `<div class="card scanning withart land" id="scanCard"><div class="artbox">${scanArt()}</div><div>
+        <div class="title">Skenujem ${esc(s.root)}</div>
+        <div class="note" style="margin-top:4px">Prechádzam všetky priečinky a súbory. Na veľkom disku to chvíľu trvá.</div>
         <div class="nums"><div>Súbory<b id="scF">0</b></div><div>Priečinky<b id="scD">0</b></div><div>Veľkosť<b id="scB">0 B</b></div><div>Čas<b id="scT">0 s</b></div></div>
-        <div class="bar" id="scBar"><i></i></div></div>`;
+        <div class="bar" id="scBar"><i></i></div></div></div>`;
     }
     $('#scF').textContent = sk(s.files);
     $('#scD').textContent = sk(s.dirs);
@@ -805,7 +824,7 @@ function renderProcs() {
       <span class="r">${p.cpu >= 0.1 ? `${sk(p.cpu, 1)} %` : '–'}</span><span class="r">${p.ram ? bytes(p.ram) : '?'}</span><span class="r">${rate(p.io_bps)}</span></div>`).join('');
     const auto = autoOf(g);
     return `<div class="pgroup ${open ? 'open' : ''}" data-key="${esc(g.key)}">
-      <div class="prow"><div class="who"><svg class="chev" viewBox="0 0 12 12"><path d="M4.5 2.5L8 6l-3.5 3.5"/></svg><span class="nm">${esc(g.name)}</span>${g.verdict === 'system' ? '' : badge(g.verdict)}${auto ? `<span class="badge auto" data-tip="Spúšťa sa so systémom: ${esc(auto.when)} (${esc(auto.source)})">${ICON.rocket}So systémom</span>` : ''}${n > 1 ? `<span class="cnt">${n} ${plural(n, 'proces', 'procesy', 'procesov')}</span>` : ''}</div>
+      <div class="prow"><div class="who"><svg class="chev" viewBox="0 0 12 12"><path d="M4.5 2.5L8 6l-3.5 3.5"/></svg><span class="gicon v-${g.verdict}">${ICON[procIcon(g)]}</span><span class="nm">${esc(g.name)}</span>${g.verdict === 'system' ? '' : badge(g.verdict)}${auto ? `<span class="badge auto" data-tip="Spúšťa sa so systémom: ${esc(auto.when)} (${esc(auto.source)})">${ICON.rocket}So systémom</span>` : ''}${n > 1 ? `<span class="cnt">${n} ${plural(n, 'proces', 'procesy', 'procesov')}</span>` : ''}</div>
       <span></span><span class="r ${g.cpu >= 10 ? 'hot' : g.cpu < 0.1 ? 'dim' : ''}">${g.cpu >= 0.1 ? `${sk(g.cpu, 1)} %` : '–'}</span>
       <span class="r">${g.ram ? bytes(g.ram) : '?'}</span><span class="r ${g.io_bps < 1024 ? 'dim' : ''}">${rate(g.io_bps)}</span></div>
       <div class="pdetail">${g.about ? `<div class="about">${esc(g.about)}</div>` : ''}${killable || auto ? `<div class="gact">${killable ? `<button class="btn small killall">Ukončiť${n > 1 ? ` všetky (${n})` : ''}</button>` : ''}${auto ? '<button class="btn small ghost toauto">Vypnúť zo spúšťania…</button>' : ''}</div>` : ''}${procs}${n > 40 ? `<div class="proc">… a ďalších ${n - 40}</div>` : ''}</div></div>`;
@@ -820,6 +839,13 @@ function renderProcs() {
   $$('#plist .killall').forEach((b) => (b.onclick = () => { const g = groupOf(b); killProcs(g.procs.map((p) => ({ pid: p.pid, exe: p.exe })), g.name); }));
   $$('#plist .toauto').forEach((b) => (b.onclick = () => { const name = groupOf(b).name; su.q = name.toLowerCase(); su.kind = 'all'; $('#startupSearch').value = name; setView('startup'); }));
   bindTips($('#plist'));
+}
+
+/** Icon for a process group: Windows, game, lights, peripherals or app. */
+function procIcon(g) {
+  if (g.key === 'windows') return 'win';
+  if (g.procs.some((p) => /\\(steamapps\\common|epic games|xboxgames|riot games|battle\.net|world of warcraft|call of duty)\\/i.test(p.path || ''))) return 'game';
+  return { rgb: 'sparkle', peripheral: 'mouse', needed: 'shield', system: 'win' }[g.verdict] || 'app';
 }
 
 /** The enabled autostart entry a process group comes from, if any. */
@@ -889,7 +915,9 @@ const EYE_OFF = '<svg viewBox="0 0 16 16"><path d="M2 2l12 12M6.6 6.7a2 2 0 0 0 
 function startupRow(i) {
   const busy = su.busy.has(i.id);
   const adv = i.advice === 'maybe' ? '<span class="badge maybe">Záleží, čo používaš</span>' : i.advice === 'keep' ? '<span class="badge needed">Nechaj</span>' : '';
-  return `<div class="arow srow ${i.enabled ? '' : 'isoff'}" data-id="${esc(i.id)}">
+  const kindIcon = { run: 'rocket', folder: 'dir', task: 'clock', service: 'gear', runonce: 'restart', winlogon: 'warn' }[i.kind] || 'app';
+  return `<div class="arow srow withicon v-${i.verdict} ${i.enabled ? '' : 'isoff'}" data-id="${esc(i.id)}">
+    <span class="ricon" data-tip="${esc({ run: 'Run kľúč v registri', folder: 'Priečinok Po spustení', task: 'Naplánovaná úloha', service: 'Služba', runonce: 'RunOnce', winlogon: 'Winlogon' }[i.kind] || '')}">${ICON[kindIcon]}</span>
     <div style="min-width:0">
       <div class="t">${esc(i.app || i.name)}${i.app && i.app !== i.name ? `<span class="sub">${esc(i.name)}</span>` : ''}
         ${i.hidden ? `<span class="badge ghost" data-tip="Správca úloh túto položku v zozname Aplikácie pri spustení neukazuje.">${EYE_OFF}Skryté</span>` : ''}
@@ -1109,6 +1137,7 @@ const TWEAK_CATS = [
   ['background', 'Na pozadí'],
   ['looks', 'Pre slabšie PC'],
 ];
+const TWEAK_ICONS = { responsive: 'bolt', games: 'game', background: 'layers', looks: 'sparkle' };
 const RECOMMENDED_TWEAKS = ['startup_delay', 'menu_delay', 'game_mode', 'hags', 'tips'];
 const PLACEBO = [
   ['Vypnutie Nagleho algoritmu a TCP úpravy', 'Hry posielajú dáta po svojom (väčšinou cez UDP), na ping to nemá vplyv.'],
@@ -1123,7 +1152,7 @@ const PLACEBO = [
 
 async function loadPerf() {
   const body = $('#perfBody');
-  if (!tweakStates) body.innerHTML = '<div class="card empty">Kontrolujem hardvér a nastavenia…</div>';
+  if (!tweakStates) body.innerHTML = scanCard('Kontrolujem hardvér a nastavenia', 'Pamäť, monitory, grafiku a nastavenia Windowsu.');
   const [f, sp, ds, tw] = await Promise.all([
     invoke('system_facts'), specs ? Promise.resolve(specs) : invoke('pc_specs'),
     invoke('displays_list').catch(() => []), invoke('tweaks_list'),
@@ -1156,7 +1185,6 @@ function renderPerf() {
   const tw = (tweakStates || []).filter((t) => t.available);
   const off = tw.filter((t) => !t.on && RECOMMENDED_TWEAKS.includes(t.key));
   $('#perfCount').textContent = hw.tips.filter((t) => t.level === 'high').length || '';
-  const restart = { logoff: 'Po odhlásení', reboot: 'Po reštarte' };
   const actions = [];
   $('#perfBody').innerHTML = `
     <h2>Kontrola hardvéru</h2>
@@ -1169,28 +1197,14 @@ function renderPerf() {
     ${TWEAK_CATS.map(([cat, title]) => {
       const list = tw.filter((t) => t.category === cat);
       if (!list.length) return '';
-      return `<h3 class="cat">${title}</h3><div class="card list">${list.map((t) => {
-        const busy = tweakBusy.has(t.key);
-        const laptop = t.key === 'power_plan' && perfFacts?.has_battery;
-        return `<div class="arow srow ${t.on ? '' : 'isoff'}" data-k="${t.key}">
-          <div style="min-width:0"><div class="t">${esc(t.title)}
-            <span class="badge ${t.effect === 'big' ? 'needed' : 'maybe'}">${t.effect === 'big' ? 'Citeľné' : 'Malý efekt'}</span>
-            ${restart[t.restart] ? `<span class="badge maybe">${restart[t.restart]}</span>` : ''}
-            ${RECOMMENDED_TWEAKS.includes(t.key) && !t.on ? '<span class="badge optional">Odporúčam</span>' : ''}</div>
-            <div class="a">${esc(t.about)}${laptop ? ' <b>Máš notebook, na batérii to neodporúčam.</b>' : ''}</div></div>
-          <div class="sw">${t.admin ? `<span data-tip="Zmena si vypýta povolenie správcu (UAC).">${SHIELD}</span>` : ''}
-            <label class="switch ${busy ? 'busy' : ''}"><input type="checkbox" ${t.on ? 'checked' : ''} ${busy ? 'disabled' : ''}><i></i></label></div></div>`;
-      }).join('')}</div>`;
+      return `<h3 class="cat">${ICON[TWEAK_ICONS[cat]] || ''}${title}</h3><div class="card list">${list.map(tweakRow).join('')}</div>`;
     }).join('')}
 
     <details class="card placebo"><summary>${ICON.warn}<span><b>Čo zámerne nerobím</b><small>Obľúbené „optimalizácie“, ktoré na Windowse 10 a 11 nepomáhajú alebo škodia</small></span></summary>
       <div class="plist">${PLACEBO.map(([a, b]) => `<div><b>${esc(a)}</b><span>${esc(b)}</span></div>`).join('')}</div></details>`;
 
   $$('#perfBody [data-a]').forEach((b) => (b.onclick = () => actions[+b.dataset.a]?.()));
-  $$('#perfBody .srow').forEach((row) => {
-    const t = tw.find((x) => x.key === row.dataset.k);
-    $('input', row).onchange = (e) => applyTweaks([t], e.target.checked);
-  });
+  bindTweakRows($('#perfBody'));
   if ($('#twRec')) $('#twRec').onclick = () => {
     const m = modal(`<h3>Zapnúť odporúčané úpravy</h3>
       <p class="mp">Každú úpravu neskôr vypneš rovnakým prepínačom alebo ju vrátiš v Histórii.</p>
@@ -1201,10 +1215,12 @@ function renderPerf() {
   bindTips($('#perfBody'));
 }
 
+function rerenderTweaks() { if (current === 'windows') renderWindows(); else renderPerf(); }
+
 async function applyTweaks(list, enable) {
   if (!list.length) return;
   list.forEach((t) => tweakBusy.add(t.key));
-  renderPerf();
+  rerenderTweaks();
   const res = await invoke('actions_apply', { actions: list.map((t) => ({ op: 'startup', id: `tweak:${t.key}`, name: t.title, toggle: { t: 'tweak', key: t.key }, enable })) })
     .catch((e) => list.map(() => ({ ok: false, error: String(e) })));
   list.forEach((t) => tweakBusy.delete(t.key));
@@ -1212,10 +1228,11 @@ async function applyTweaks(list, enable) {
   if (ok.length) {
     const r = ok.find((t) => t.restart === 'reboot') ? ' Prejaví sa po reštarte.' : ok.find((t) => t.restart === 'logoff') ? ' Prejaví sa po odhlásení.' : '';
     toast(`${enable ? 'Zapnuté' : 'Vypnuté'}: ${ok.length}.${r}`);
+    if (ok.some((t) => t.restart === 'explorer')) wn.needExplorer = true;
   }
   if (bad) toast(bad.error || 'Nepodarilo sa.', 'err');
   tweakStates = await invoke('tweaks_list');
-  renderPerf();
+  rerenderTweaks();
   helperDirty = true;
 }
 
@@ -1536,16 +1553,199 @@ views.games = {
   visible(v) { if (v && current === 'games') { pollGpu(); pollBench(); } },
 };
 
+/* ========================================================== SCAN ART */
+/** A little PC with a magnifying glass looking it over. Used while scanning. */
+function scanArt() {
+  const tiles = [];
+  const order = [3, 9, 0, 6, 11, 2, 7, 4, 10, 1, 8, 5];
+  for (let r = 0; r < 3; r++) for (let c = 0; c < 4; c++) {
+    const i = r * 4 + c;
+    tiles.push(`<rect class="sa-t" x="${40 + c * 27}" y="${40 + r * 20}" width="21" height="14" rx="3" style="animation-delay:${order[i] * 0.2}s"/>`);
+  }
+  const spark = (x, y, d, s = 1) => `<g transform="translate(${x} ${y}) scale(${s})"><path class="sa-spark" style="animation-delay:${d}s" d="M0-7Q0 0 7 0Q0 0 0 7Q0 0-7 0Q0 0 0-7z"/></g>`;
+  return `<svg class="scanart" viewBox="0 0 240 170" aria-hidden="true">
+    <defs><radialGradient id="saLens" cx="35%" cy="30%" r="80%"><stop offset="0" stop-color="#fff" stop-opacity=".6"/><stop offset=".5" stop-color="#fff" stop-opacity=".12"/><stop offset="1" stop-color="#fff" stop-opacity=".04"/></radialGradient></defs>
+    <ellipse class="sa-shadow" cx="122" cy="152" rx="96" ry="7"/>
+    <rect class="sa-frame" x="24" y="24" width="132" height="88" rx="11"/>
+    <rect class="sa-screen" x="32" y="32" width="116" height="70" rx="6"/>
+    ${tiles.join('')}
+    <path class="sa-frame" d="M82 112h16l4 16H78z"/>
+    <rect class="sa-frame" x="64" y="128" width="52" height="7" rx="3.5"/>
+    <rect class="sa-frame" x="170" y="34" width="44" height="101" rx="8"/>
+    <path class="sa-line" d="M181 49h22M181 57h22M181 65h22"/>
+    <rect class="sa-slot" x="181" y="82" width="22" height="5" rx="2.5"/>
+    <circle class="sa-led" cx="192" cy="121" r="3"/>
+    ${spark(162, 22, 0.4)}${spark(30, 120, 1.3, 0.8)}${spark(222, 96, 2.1, 0.9)}
+    <g class="sa-mag"><g class="sa-tilt">
+      <path class="sa-handle" d="M18 18l17 17"/>
+      <circle class="sa-glass" r="24" fill="url(#saLens)"/>
+      <circle class="sa-rim" r="24"/>
+      <path class="sa-glint" d="M-15-7a17 17 0 0 1 9-10"/>
+    </g></g>
+  </svg>`;
+}
+
+/** Loading card with the art, a title and an optional checklist. */
+function scanCard(title, note, steps = []) {
+  return `<div class="card scanning withart land"><div class="artbox">${scanArt()}</div><div>
+    <div class="title">${esc(title)}</div>${note ? `<div class="note" style="margin-top:6px">${esc(note)}</div>` : ''}
+    ${steps.length ? `<ul class="checks">${steps.map((s, i) => `<li data-step="${i}"><span class="ck"></span>${esc(s)}</li>`).join('')}</ul>` : ''}
+  </div></div>`;
+}
+function tickStep(i) {
+  const li = $(`.checks li[data-step="${i}"]`);
+  if (li) li.classList.add('done');
+}
+
+/* ========================================================== WINDOWS */
+const WIN_CATS = [
+  ['w_clean', 'Bez reklám a rušenia', 'ad'],
+  ['w_explorer', 'Prieskumník a panel úloh', 'dir'],
+  ['w_update', 'Aktualizácie a vypínanie', 'restart'],
+  ['w_privacy', 'Súkromie', 'eye'],
+  ['w_features', 'Užitočné funkcie', 'sparkle'],
+];
+const WIN_RECOMMENDED = ['classic_menu', 'file_ext', 'end_task', 'start_web', 'start_ads', 'lock_ads', 'setup_nags', 'explorer_ads', 'ad_id', 'clipboard_history', 'no_auto_restart'];
+const wn = { apps: null, facts: null, needExplorer: false, busyApps: false };
+
+async function loadWindows() {
+  if (!tweakStates || !wn.facts) $('#winBody').innerHTML = scanCard('Pozerám sa na tvoj Windows', 'Nastavenia, priečinky a predinštalované appky.', ['Nastavenia', 'Priečinky a OneDrive', 'Predinštalované appky']);
+  const tw = invoke('tweaks_list').then((x) => { tweakStates = x; tickStep(0); return x; });
+  const f = invoke('system_facts').then((x) => { wn.facts = x; tickStep(1); return x; });
+  const sp = specs ? Promise.resolve(specs) : invoke('pc_specs').catch(() => null);
+  await Promise.all([tw, f, sp.then((x) => (specs = x))]);
+  renderWindows();
+  if (!wn.apps) {
+    wn.apps = await invoke('appx_list').catch(() => []);
+    tickStep(2);
+    renderWindows();
+  }
+}
+
+function winChecks() {
+  const tips = [];
+  const od = wn.facts?.onedrive_folders || [];
+  if (od.length) {
+    tips.push({ level: 'mid', icon: 'dir', title: `OneDrive má tvoje priečinky: ${od.join(', ')}`,
+      text: 'Windows 11 ich často presunie do OneDrive bez opýtania. Súbory sa potom nahrávajú do cloudu, zaberajú tvojich 5 GB zadarmo a pri plnom OneDrive začne Windows strašiť. Ak to tak chceš, nechaj to.',
+      steps: ['Klikni na ikonu OneDrive (oblak) pri hodinách → Nastavenia → Synchronizácia a zálohovanie → Spravovať zálohovanie.', 'Vypni zálohovanie pre Plochu, Dokumenty a Obrázky.', 'Súbory ostanú v OneDrive, presuň si ich späť do priečinkov v C:\\Users\\tvoje meno.'] });
+  }
+  const dg = (specs?.gpus || []).some((g) => DGPU.test(g.name));
+  const drv = (tweakStates || []).find((t) => t.key === 'no_driver_updates');
+  if (dg && drv && !drv.on) {
+    tips.push({ level: 'low', icon: 'gpu', title: 'Windows Update ti môže prepísať ovládač grafiky',
+      text: 'Pri samostatnej grafike sa stáva, že Windows nainštaluje starší ovládač cez ten od NVIDIA alebo AMD. Hry potom bežia horšie alebo padajú.',
+      action: { label: 'Zakázať nižšie', run: () => $('#winBody .srow[data-k="no_driver_updates"]')?.scrollIntoView({ behavior: 'smooth', block: 'center' }) } });
+  }
+  return tips;
+}
+
+function tweakRow(t) {
+  const busy = tweakBusy.has(t.key);
+  const restart = { explorer: 'Reštart Prieskumníka', logoff: 'Po odhlásení', reboot: 'Po reštarte' };
+  const laptop = t.key === 'power_plan' && perfFacts?.has_battery;
+  const rec = RECOMMENDED_TWEAKS.includes(t.key) || WIN_RECOMMENDED.includes(t.key);
+  return `<div class="arow srow withicon ${t.on ? '' : 'isoff'}" data-k="${t.key}">
+    <span class="ricon">${ICON[t.icon] || ICON.gear}</span>
+    <div style="min-width:0"><div class="t">${esc(t.title)}
+      <span class="badge ${t.effect === 'big' ? 'needed' : 'maybe'}">${t.effect === 'big' ? 'Citeľné' : 'Malý efekt'}</span>
+      ${restart[t.restart] ? `<span class="badge maybe">${restart[t.restart]}</span>` : ''}
+      ${rec && !t.on ? '<span class="badge optional">Odporúčam</span>' : ''}</div>
+      <div class="a">${esc(t.about)}${laptop ? ' <b>Máš notebook, na batérii to neodporúčam.</b>' : ''}</div></div>
+    <div class="sw">${t.admin ? `<span data-tip="Zmena si vypýta povolenie správcu (UAC).">${SHIELD}</span>` : ''}
+      <label class="switch ${busy ? 'busy' : ''}"><input type="checkbox" ${t.on ? 'checked' : ''} ${busy ? 'disabled' : ''}><i></i></label></div></div>`;
+}
+function bindTweakRows(root) {
+  $$('.srow[data-k]', root).forEach((row) => {
+    const t = (tweakStates || []).find((x) => x.key === row.dataset.k);
+    const cb = $('input', row);
+    if (t && cb) cb.onchange = (e) => applyTweaks([t], e.target.checked);
+  });
+}
+
+function renderWindows() {
+  const tw = (tweakStates || []).filter((t) => t.available && t.category.startsWith('w_'));
+  const dg = (specs?.gpus || []).some((g) => DGPU.test(g.name));
+  const recKeys = dg ? [...WIN_RECOMMENDED, 'no_driver_updates'] : WIN_RECOMMENDED;
+  const off = tw.filter((t) => !t.on && recKeys.includes(t.key));
+  const checks = winChecks();
+  const actions = [];
+  const apps = wn.apps;
+  $('#winCount').textContent = off.length || '';
+  $('#winBody').innerHTML = `
+    ${wn.needExplorer ? `<div class="card recbar"><div>${ICON.restart}<div><b>Niektoré zmeny sa ukážu až po reštarte Prieskumníka.</b><span>Panel úloh a okná Prieskumníka na sekundu zmiznú. Otvorené programy to nezatvorí.</span></div></div><button class="btn primary" id="rsExplorer">Reštartovať Prieskumník</button></div>` : ''}
+    ${checks.length ? `<h2>Stojí za pozornosť</h2>${tipCards(checks, actions)}` : ''}
+    <div class="h2row"><h2>Úpravy</h2>${off.length ? `<button class="btn primary small" id="winRec">Zapnúť odporúčané (${off.length})</button>` : ''}</div>
+    <div class="hint">Každú úpravu vypneš rovnakým prepínačom a nájdeš ju v Histórii. Veľké aktualizácie Windowsu niektoré z nich vracajú, vtedy ich tu uvidíš znova vypnuté.</div>
+    ${WIN_CATS.map(([cat, title, icon]) => {
+      const list = tw.filter((t) => t.category === cat);
+      if (!list.length) return '';
+      return `<h3 class="cat">${ICON[icon] || ''}${title}</h3><div class="card list">${list.map(tweakRow).join('')}</div>`;
+    }).join('')}
+    <h2>Predinštalované appky</h2>
+    <div class="hint">Appky, ktoré prišli s Windowsom a mnoho ľudí ich nikdy neotvorí. Ponúkam len tie, ktoré sa dajú bezpečne odstrániť. Všetky sa dajú nainštalovať späť z Microsoft Store.</div>
+    <div class="card list" id="appxList">${apps == null ? `<div class="empty">${ICON.search}Hľadám predinštalované appky…</div>` : !apps.length ? `<div class="empty">${ICON.check}Žiadny balast som nenašiel.</div>` :
+      apps.map((a, i) => `<label class="arow prow2 withicon"><input type="checkbox" data-i="${i}" ${a.junk ? 'checked' : ''}><div style="min-width:0"><div class="t">${esc(a.title)}${a.junk ? '' : '<span class="badge maybe">Možno používaš</span>'}</div><div class="a">${esc(a.about)}</div></div><span></span></label>`).join('') +
+      `<div class="pact"><span id="appxSum"></span><button class="btn danger" id="appxGo">Odinštalovať vybrané</button></div>`}</div>`;
+
+  $$('#winBody [data-a]').forEach((b) => (b.onclick = () => actions[+b.dataset.a]?.()));
+  bindTweakRows($('#winBody'));
+  bindTips($('#winBody'));
+  if ($('#rsExplorer')) $('#rsExplorer').onclick = async () => {
+    await invoke('actions_apply', { actions: [{ op: 'restart_explorer' }] }).catch(() => {});
+    wn.needExplorer = false; toast('Prieskumník reštartovaný'); renderWindows();
+  };
+  if ($('#winRec')) $('#winRec').onclick = () => {
+    const m = modal(`<h3>Zapnúť odporúčané úpravy Windowsu</h3>
+      <p class="mp">Všetko sa dá vrátiť rovnakým prepínačom alebo v Histórii.</p>
+      <div class="mlist">${off.map((t, k) => `<label class="mrow"><input type="checkbox" data-k="${k}" checked><div><b>${esc(t.title)}</b><span>${esc(t.about)}</span></div>${t.admin ? SHIELD : ''}</label>`).join('')}</div>
+      ${off.some((t) => t.admin) ? `<p class="mnote">${SHIELD}Pri úpravách pre celý počítač sa raz objaví okno UAC.</p>` : ''}
+      <div class="mact"><button class="btn" data-close>Zrušiť</button><button class="btn primary" id="wGo">Zapnúť</button></div>`);
+    $('#wGo', m).onclick = () => { const pick = $$('input:checked', m).map((c) => off[+c.dataset.k]); closeModal(); applyTweaks(pick, true); };
+  };
+  const box = $('#appxList');
+  if (apps?.length) {
+    const sum = () => {
+      const n = $$('input:checked', box).length;
+      $('#appxSum').textContent = n ? `Vybrané: ${n}` : '';
+      $('#appxGo').disabled = !n;
+    };
+    $$('input', box).forEach((c) => (c.onchange = sum));
+    sum();
+    $('#appxGo').onclick = () => {
+      const pick = $$('input:checked', box).map((c) => apps[+c.dataset.i]);
+      const m = modal(`<h3>Odinštalovať ${pick.length} ${plural(pick.length, 'appku', 'appky', 'appiek')}?</h3>
+        <p class="mp">${pick.map((a) => esc(a.title)).join(', ')}.</p><p class="mp">Späť ich dostaneš z Microsoft Store. Zapíšem to do Histórie.</p>
+        <div class="mact"><button class="btn" data-close>Zrušiť</button><button class="btn danger" id="aGo">Odinštalovať</button></div>`);
+      $('#aGo', m).onclick = async () => {
+        closeModal();
+        $('#appxGo').disabled = true; $('#appxGo').textContent = 'Odinštalovávam…';
+        const res = await invoke('actions_apply', { actions: pick.map((a) => ({ op: 'uninstall', full: a.full, name: a.title })) }).catch((e) => pick.map(() => ({ ok: false, error: String(e) })));
+        const ok = res.filter((r) => r.ok).length, bad = res.find((r) => !r.ok);
+        if (ok) toast(`Odinštalované: ${ok}`);
+        if (bad) toast(bad.error || 'Niečo sa nepodarilo.', 'err');
+        wn.apps = await invoke('appx_list').catch(() => []);
+        renderWindows();
+      };
+    };
+  }
+}
+
+$('#winRefresh').onclick = () => { tweakStates = null; wn.facts = null; wn.apps = null; loadWindows(); };
+views.windows = { enter() { loadWindows(); } };
+
 /* ========================================================== HISTORY */
 const hi = { filter: 'all' };
 const HKINDS = [
   ['all', 'Všetko', () => true],
   ['startup', 'Spúšťanie', (c) => c.toggle && c.toggle.t !== 'tweak'],
   ['tweak', 'Úpravy', (c) => c.toggle?.t === 'tweak'],
-  ['kill', 'Ukončené procesy', (c) => !c.toggle],
+  ['apps', 'Odinštalované appky', (c) => !c.toggle && c.id.startsWith('appx:')],
+  ['kill', 'Ukončené procesy', (c) => !c.toggle && !c.id.startsWith('appx:')],
 ];
 function changeText(c) {
   const t = c.toggle;
+  if (!t && c.id.startsWith('appx:')) return ['Odinštalované · späť z Microsoft Store', 'rec'];
   if (!t) return ['Proces ukončený', 'rec'];
   if (t.t === 'tweak') return [c.enabled ? 'Úprava zapnutá' : 'Úprava vypnutá', c.enabled ? 'mint' : 'amber'];
   const where = { approved: 'zo spúšťania', task: 'naplánovaná úloha', service: 'služba' }[t.t] || '';
@@ -1561,6 +1761,7 @@ function dayLabel(d) {
   return x.toLocaleDateString('sk-SK', { weekday: 'long', day: 'numeric', month: 'long', year: x.getFullYear() === today.getFullYear() ? undefined : 'numeric' });
 }
 async function loadHistory() {
+  if (!tweakStates) tweakStates = await invoke('tweaks_list').catch(() => null);
   changesLog = await invoke('changes_list').catch(() => []);
   renderHistory();
 }
@@ -1577,7 +1778,7 @@ function renderHistory() {
       <div class="card stat"><div class="k">Zmien celkom</div><div class="v num">${sk(all.length)}</div></div>
       <div class="card stat"><div class="k">Platí teraz</div><div class="v num">${sk(active.length)}</div></div>
       <div class="card stat"><div class="k">Vrátené</div><div class="v num">${sk(all.filter((c) => c.undone).length)}</div></div>
-      <div class="card stat"><div class="k">Ukončené procesy</div><div class="v num">${sk(all.filter((c) => !c.toggle).length)}</div></div>
+      <div class="card stat"><div class="k">Ukončené a odinštalované</div><div class="v num">${sk(all.filter((c) => !c.toggle).length)}</div></div>
     </div>
     <div class="chips">${HKINDS.map(([k, l, fn]) => { const n = all.filter(fn).length; return k !== 'all' && !n ? '' : `<button class="chip ${hi.filter === k ? 'on' : ''}" data-k="${k}">${l}<span class="n">${n}</span></button>`; }).join('')}</div>
     ${list.length ? (() => {
@@ -1587,7 +1788,9 @@ function renderHistory() {
         if (dl !== day) { if (day) out += '</div>'; out += `<h3 class="cat">${esc(dl)}</h3><div class="card list">`; day = dl; }
         const [txt, dot] = changeText(c);
         const canUndo = c.toggle && !c.undone && latest.get(c.id) === c.i;
-        out += `<div class="arow hrow ${c.undone ? 'isoff' : ''}"><span class="dot ${c.undone ? '' : dot}"></span>
+        const tw = c.toggle?.t === 'tweak' ? (tweakStates || []).find((x) => x.key === c.toggle.key) : null;
+        const hic = !c.toggle ? (c.id.startsWith('appx:') ? 'trash' : 'x') : c.toggle.t === 'tweak' ? (tw?.icon || 'sparkle') : { approved: 'rocket', task: 'clock', service: 'gear' }[c.toggle.t] || 'rocket';
+        out += `<div class="arow hrow ${c.undone ? 'isoff' : ''}"><span class="ricon s-${c.undone ? 'off' : dot}">${ICON[hic] || ICON.sparkle}</span>
           <div style="min-width:0"><div class="t">${esc(c.name)}${c.undone ? '<span class="badge off">Vrátené</span>' : ''}</div><div class="a">${esc(txt)}</div></div>
           <span class="time num">${new Date(c.at * 1000).toLocaleTimeString('sk-SK', { hour: '2-digit', minute: '2-digit' })}</span>
           ${canUndo ? `<button class="btn small" data-undo="${c.i}">Vrátiť</button>` : '<span></span>'}</div>`;
@@ -1616,15 +1819,15 @@ async function runHelper() {
   helperBusy = true;
   const body = $('#helperBody');
   if (!body.children.length) {
-    body.innerHTML = `<div class="card scanning land"><div class="title"><span class="dot amber pulse"></span>Kontrolujem tvoj systém</div>
-      <div class="note" style="margin-top:6px">Disky, dočasné súbory, procesy, automatické spúšťanie a nastavenia. Chvíľu to trvá.</div><div class="bar indet" style="margin-top:14px"><i></i></div></div>`;
+    body.innerHTML = scanCard('Kontrolujem tvoj systém', 'Chvíľu to trvá, pozerám sa všade naraz.', ['Disky', 'Dočasné súbory a cache', 'Procesy', 'Čo sa spúšťa s Windowsom', 'Hardvér a monitory', 'Nastavenia Windowsu']);
   }
   try {
+    const step = (i, p) => p.then((x) => { tickStep(i); return x; });
     const [facts, quick, snap, auto, drives, sp, ds] = await Promise.all([
-      invoke('system_facts'), invoke('quick_check'), invoke('procs_snapshot'),
-      startupItems ? Promise.resolve(startupItems) : invoke('autostart_list'),
-      invoke('storage_drives'), specs ? Promise.resolve(specs) : invoke('pc_specs').catch(() => null),
-      displays ? Promise.resolve(displays) : invoke('displays_list').catch(() => []),
+      step(5, invoke('system_facts')), step(1, invoke('quick_check')), step(2, invoke('procs_snapshot')),
+      step(3, startupItems ? Promise.resolve(startupItems) : invoke('autostart_list')),
+      step(0, invoke('storage_drives')), specs ? Promise.resolve(specs) : invoke('pc_specs').catch(() => null),
+      step(4, displays ? Promise.resolve(displays) : invoke('displays_list').catch(() => [])),
     ]);
     startupItems = auto;
     if (sp) specs = sp;

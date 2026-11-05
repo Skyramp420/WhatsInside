@@ -1652,15 +1652,38 @@ function scanArt() {
 }
 
 /** Loading card with the art, a title and an optional checklist. */
+let scanSeq = 0;
 function scanCard(title, note, steps = []) {
-  return `<div class="card scanning withart land"><div class="artbox">${scanArt()}</div><div>
+  const id = `scan${++scanSeq}`;
+  return `<div class="card scanning withart land" data-scan="${id}"><div class="artbox">${scanArt()}</div><div>
     <div class="title">${esc(title)}</div>${note ? `<div class="note" style="margin-top:6px">${esc(note)}</div>` : ''}
     ${steps.length ? `<ul class="checks">${steps.map((s, i) => `<li data-step="${i}"><span class="ck"></span>${esc(s)}</li>`).join('')}</ul>` : ''}
   </div></div>`;
 }
-function tickStep(i) {
-  const li = $(`.checks li[data-step="${i}"]`);
-  if (li) li.classList.add('done');
+
+/**
+ * Ticks the checklist of the loading card inside `root`. Ticks are spaced
+ * out a little, so even when several checks finish at the same moment you
+ * still see them go one by one. `settle()` waits until the last tick shows.
+ */
+function checklist(root) {
+  const card = $('[data-scan]', root);
+  let last = 0;
+  const pending = [];
+  return {
+    tick(i) {
+      if (!card) return;
+      const now = performance.now();
+      const at = Math.max(now, last + 280);
+      last = at;
+      pending.push(new Promise((res) => setTimeout(() => { $(`.checks li[data-step="${i}"]`, card)?.classList.add('done'); res(); }, at - now)));
+    },
+    settle() {
+      if (!card || !card.isConnected) return Promise.resolve();
+      return Promise.all(pending).then(() => new Promise((r) => setTimeout(r, 350)));
+    },
+    step(i, p) { return p.then((x) => { this.tick(i); return x; }); },
+  };
 }
 
 /* ========================================================== WINDOWS */
@@ -1676,14 +1699,18 @@ const wn = { apps: null, facts: null, needExplorer: false, busyApps: false };
 
 async function loadWindows() {
   if (!tweakStates || !wn.facts) $('#winBody').innerHTML = scanCard('Pozerám sa na tvoj Windows', 'Nastavenia, priečinky a predinštalované appky.', ['Nastavenia', 'Priečinky a OneDrive', 'Predinštalované appky']);
-  const tw = invoke('tweaks_list').then((x) => { tweakStates = x; tickStep(0); return x; });
-  const f = invoke('system_facts').then((x) => { wn.facts = x; tickStep(1); return x; });
+  const cl = checklist($('#winBody'));
+  const tw = cl.step(0, invoke('tweaks_list')).then((x) => (tweakStates = x));
+  const f = cl.step(1, invoke('system_facts')).then((x) => (wn.facts = x));
   const sp = specs ? Promise.resolve(specs) : invoke('pc_specs').catch(() => null);
+  const apps = wn.apps ? Promise.resolve(wn.apps) : cl.step(2, invoke('appx_list').catch(() => []));
   await Promise.all([tw, f, sp.then((x) => (specs = x))]);
+  // Settings are ready; show them as soon as the app list is too, or after a moment.
+  await Promise.race([apps, new Promise((r) => setTimeout(r, 1500))]);
+  await cl.settle();
   renderWindows();
   if (!wn.apps) {
-    wn.apps = await invoke('appx_list').catch(() => []);
-    tickStep(2);
+    wn.apps = await apps;
     renderWindows();
   }
 }
@@ -1806,10 +1833,12 @@ const fmtDate = (unix) => new Date(unix * 1000).toLocaleString('sk-SK', { day: '
 
 async function loadStability() {
   if (!sb.report) $('#stabBody').innerHTML = scanCard('Čítam denník Windowsu', 'Pády, modré obrazovky, hardvérové chyby a disky za posledných 30 dní.', ['Systémový denník', 'Pády appiek', 'Disky']);
-  const r = invoke('stability_report').then((x) => { tickStep(0); tickStep(1); return x; });
-  const d = invoke('disks_list').catch(() => []).then((x) => { tickStep(2); return x; });
+  const cl = checklist($('#stabBody'));
+  const r = invoke('stability_report').then((x) => { cl.tick(0); cl.tick(1); return x; });
+  const d = cl.step(2, invoke('disks_list').catch(() => []));
   if (!specs) specs = await invoke('pc_specs').catch(() => null);
   [sb.report, sb.disks] = await Promise.all([r, d]);
+  await cl.settle();
   renderStability();
 }
 
@@ -2068,7 +2097,8 @@ async function runHelper() {
     body.innerHTML = scanCard('Kontrolujem tvoj systém', 'Chvíľu to trvá, pozerám sa všade naraz.', ['Disky', 'Dočasné súbory a cache', 'Procesy', 'Čo sa spúšťa s Windowsom', 'Hardvér a monitory', 'Nastavenia Windowsu', 'Pády a chyby']);
   }
   try {
-    const step = (i, p) => p.then((x) => { tickStep(i); return x; });
+    const cl = checklist(body);
+    const step = (i, p) => cl.step(i, p);
     const [facts, quick, snap, auto, drives, sp, ds, stab] = await Promise.all([
       step(5, invoke('system_facts')), step(1, invoke('quick_check')), step(2, invoke('procs_snapshot')),
       step(3, startupItems ? Promise.resolve(startupItems) : invoke('autostart_list')),
@@ -2076,6 +2106,7 @@ async function runHelper() {
       step(4, displays ? Promise.resolve(displays) : invoke('displays_list').catch(() => [])),
       step(6, sb.report ? Promise.resolve(sb.report) : invoke('stability_report').catch(() => null)),
     ]);
+    await cl.settle();
     sb.report = stab;
     startupItems = auto;
     if (sp) specs = sp;

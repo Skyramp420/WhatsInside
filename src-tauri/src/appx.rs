@@ -36,6 +36,7 @@ pub const KNOWN: &[Known] = &[
     Known { id: "MSTeams", title: "Microsoft Teams", about: "Ak ho nepoužívaš na prácu ani školu, netreba.", junk: false },
     Known { id: "MicrosoftTeams", title: "Microsoft Teams (osobný)", about: "Ak ho nepoužívaš, netreba.", junk: false },
     Known { id: "Microsoft.YourPhone", title: "Prepojenie s telefónom", about: "Správy a fotky z mobilu na PC. Ak ho nepoužívaš, netreba.", junk: false },
+    Known { id: "MicrosoftWindows.Client.WebExperience", title: "Miniaplikácie (Widgets)", about: "Panel so správami a počasím aj jeho procesy na pozadí. Zmizne aj tlačidlo na paneli úloh. Späť ho dostaneš v Microsoft Store ako „Windows Web Experience Pack“.", junk: false },
     Known { id: "Microsoft.Copilot", title: "Copilot", about: "AI asistent od Microsoftu.", junk: false },
     Known { id: "BytedancePte.Ltd.TikTok", title: "TikTok", about: "Predinštalovaná ponuka.", junk: true },
     Known { id: "Facebook.", title: "Facebook / Instagram", about: "Predinštalovaná ponuka.", junk: true },

@@ -36,6 +36,7 @@
     <button data-view="procs"><svg viewBox="0 0 16 16"><path d="M1.5 8.5h3l2-5 3 9 2-4h3"/></svg>Procesy</button>
     <button data-view="startup"><svg viewBox="0 0 16 16"><path d="M8 1.8v5.4"/><path d="M4.4 4.1a5.3 5.3 0 1 0 7.2 0"/></svg>Po spustení<span class="count" id="startupCount"></span></button>
     <button data-view="hw"><svg viewBox="0 0 16 16"><rect x="4" y="4" width="8" height="8" rx="1.6"/><path d="M6.5 1.5V4M9.5 1.5V4M6.5 12v2.5M9.5 12v2.5M1.5 6.5H4M1.5 9.5H4M12 6.5h2.5M12 9.5h2.5"/></svg>Hardvér</button>
+    <button data-view="stability"><svg viewBox="0 0 16 16"><path d="M8 1.6l5 2v4c0 3.2-2.1 5.7-5 6.8-2.9-1.1-5-3.6-5-6.8v-4z"/><path d="M5.6 8.2l1.7 1.7 3.2-3.4"/></svg>Stabilita<span class="count" id="stabCount"></span></button>
     <button data-view="history"><svg viewBox="0 0 16 16"><path d="M2.2 8a5.8 5.8 0 1 0 1.7-4.1"/><path d="M2 2.5v2.8h2.8"/><path d="M8 5v3.2l2.2 1.4"/></svg>História<span class="count" id="historyCount"></span></button>
   </nav>
   <div class="spacer"></div>
@@ -129,6 +130,15 @@
       </div>
     </div>
     <div id="startupBody"></div>
+  </section>
+
+  <!-- Stability -->
+  <section class="view" id="v-stability">
+    <div class="head">
+      <div><h1>Stabilita</h1><div class="sub">Prečo PC alebo appka spadli a v akom stave sú disky</div></div>
+      <div class="actions"><button class="btn" id="stabRefresh"><svg viewBox="0 0 16 16"><path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9M13.5 2.5v3h-3"/></svg>Obnoviť</button></div>
+    </div>
+    <div id="stabBody"></div>
   </section>
 
   <!-- History -->

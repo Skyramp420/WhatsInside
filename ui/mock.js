@@ -64,6 +64,15 @@
   const A = (o) => ({ exe: null, app: null, about: null, advice: null, running: null, hidden: false, needs_admin: false, enabled: true, toggle: { t: 'approved', hive: 'HKCU', key: 'x', name: o.name }, ...o });
   const mockChanges = [];
   const mockBench = { phase: 'idle' };
+  let mockRestore = 0, mockMethod = 'walk';
+  const mockCaches = [
+          { label: 'DaVinci Resolve – render cache', hint: 'Resolve si ju vytvorí znova. Zmaž ju v Resolve (Playback → Delete Render Cache) alebo keď Resolve nebeží.', path: 'C:\\Users\\Alex\\Videos\\ShapeFX\\CacheClip', size: 41 * GB, files: 3200, id: 1, how: 'contents' },
+          { label: 'Adobe – media cache (Premiere, After Effects)', hint: 'Bezpečné zmazať, keď Adobe appky nebežia. Vytvorí sa znova pri otvorení projektu.', path: 'C:\\Users\\Alex\\AppData\\Roaming\\Adobe\\Common\\Media Cache Files', size: 12.6 * GB, files: 800, id: 2, how: 'contents' },
+          { label: 'Dočasné súbory', hint: 'Bezpečné zmazať. Súbory, ktoré sa práve používajú, Windows zmazať nedovolí, a to je v poriadku.', path: 'C:\\Users\\Alex\\AppData\\Local\\Temp', size: 6.3 * GB, files: 12000, id: 3, how: 'contents' },
+          { label: 'Shader cache grafiky', hint: 'Hry si ju vytvoria znova. Prvé spustenie hry potom môže chvíľu sekať.', path: 'C:\\Users\\Alex\\AppData\\Local\\NVIDIA\\DXCache', size: 2.1 * GB, files: 400, id: 4, how: 'contents' },
+          { label: 'Kôš', hint: 'Súbory, ktoré si už zmazal. Vysypaj Kôš.', path: 'C:\\$Recycle.Bin', size: 4.2 * GB, files: 50, id: 5, how: 'bin' },
+          { label: 'Stará verzia Windowsu', hint: 'Maž cez Nastavenia → Systém → Úložisko → Dočasné súbory.', path: 'C:\\Windows.old', size: 22 * GB, files: 90000, id: 6, how: 'settings' },
+        ];
   const mockApps = [
     { name: 'Clipchamp.Clipchamp', full: 'Clipchamp.Clipchamp_3.1_neutral__yxz', title: 'Clipchamp', about: 'Jednoduchý strihač videa od Microsoftu.', junk: true },
     { name: 'Microsoft.BingNews', full: 'Microsoft.BingNews_4_x64__8we', title: 'Správy', about: 'Microsoft Start, správy s reklamami.', junk: true },
@@ -157,13 +166,13 @@
           { root: 'D:\\', label: 'Projekty', fs: 'NTFS', total: 3726 * GB, free: 420 * GB, removable: false },
           { root: 'E:\\', label: 'USB', fs: 'exFAT', total: 128 * GB, free: 100 * GB, removable: true },
         ];
-        case 'storage_start': scanStart = Date.now(); scanning = true; done = false; return null;
+        case 'storage_start': scanStart = Date.now(); scanning = true; done = false; mockMethod = args.fast ? 'mft' : 'walk'; return null;
         case 'storage_cancel': scanning = false; return null;
         case 'storage_status': {
           if (!scanning && !done) return { phase: 'idle', root: null, files: 0, dirs: 0, bytes: 0, errors: 0, cloud_bytes: 0, elapsed_ms: 0 };
           const t = Date.now() - scanStart, f = Math.min(1, t / (window.MOCK_SCAN_MS ?? 2500));
           if (f >= 1) { scanning = false; done = true; }
-          return { phase: done ? 'done' : 'scanning', root: 'C:\\', files: Math.round(f * 431200), dirs: Math.round(f * 61000), bytes: f * nodes[0].size, errors: 14, cloud_bytes: 3.2 * GB, elapsed_ms: t };
+          return { method: mockMethod, note: null, phase: done ? 'done' : 'scanning', root: 'C:\\', files: f < 0.3 && mockMethod === 'mft' ? 0 : Math.round(f * 431200), dirs: Math.round(f * 61000), bytes: f * nodes[0].size, errors: 14, cloud_bytes: 3.2 * GB, elapsed_ms: t };
         }
         case 'storage_node': { const n = nodes[args.id]; const crumbs = []; let c = args.id; while (c != null) { crumbs.unshift({ id: c, name: c === 0 ? 'C:' : nodes[c].name }); c = nodes[c].parent; } let o = null, k = args.id; while (k != null && !o) { o = nodes[k].tag; k = nodes[k].parent; } return { node: view(args.id, 2), path: pathOf(args.id), crumbs, owner: o }; }
         case 'storage_top_files': return [
@@ -171,12 +180,7 @@
           { path: 'C:\\hiberfil.sys', size: 12 * GB }, { path: 'C:\\Users\\Alex\\Downloads\\Win11_24H2.iso', size: 5.8 * GB },
           { path: 'C:\\Program Files\\Steam\\steamapps\\common\\Cyberpunk 2077\\archive\\pc\\content\\basegame_4_gamedata.archive', size: 4.1 * GB },
         ];
-        case 'storage_caches': return [
-          { label: 'DaVinci Resolve – render cache', hint: 'Resolve si ju vytvorí znova. Zmaž ju v Resolve (Playback → Delete Render Cache) alebo keď Resolve nebeží.', path: 'C:\\Users\\Alex\\Videos\\ShapeFX\\CacheClip', size: 41 * GB, files: 3200, id: 1 },
-          { label: 'Adobe – media cache (Premiere, After Effects)', hint: 'Bezpečné zmazať, keď Adobe appky nebežia. Vytvorí sa znova pri otvorení projektu.', path: 'C:\\Users\\Alex\\AppData\\Roaming\\Adobe\\Common\\Media Cache Files', size: 12.6 * GB, files: 800, id: 2 },
-          { label: 'Dočasné súbory', hint: 'Bezpečné zmazať. Súbory, ktoré sa práve používajú, Windows zmazať nedovolí, a to je v poriadku.', path: 'C:\\Users\\Alex\\AppData\\Local\\Temp', size: 6.3 * GB, files: 12000, id: 3 },
-          { label: 'Shader cache grafiky', hint: 'Hry si ju vytvoria znova. Prvé spustenie hry potom môže chvíľu sekať.', path: 'C:\\Users\\Alex\\AppData\\Local\\NVIDIA\\DXCache', size: 2.1 * GB, files: 400, id: 4 },
-        ];
+        case 'storage_caches': return mockCaches;
         case 'storage_reveal': return null;
         case 'storage_owners': {
           const g = nodes.filter((n) => n.tag?.kind === 'game').map((n) => ({ id: n.id, label: n.tag.label, source: n.tag.source, path: pathOf(n.id), size: n.size, age_days: n.name === 'Counter-Strike 2' ? 420 : 12 })).sort((a, b) => b.size - a.size);
@@ -198,10 +202,10 @@
         }
         case 'quick_check': return {
           caches: [
-            { label: 'Dočasné súbory', hint: '', path: 'C:\\Users\\Alex\\AppData\\Local\\Temp', size: 6.3 * GB, files: 12000 },
+            { label: 'Dočasné súbory', hint: '', path: 'C:\\Users\\Alex\\AppData\\Local\\Temp', size: 6.3 * GB, files: 12000, how: 'contents' },
             { label: 'Adobe – media cache (Premiere, After Effects)', hint: '', path: '', size: 12.6 * GB, files: 800 },
             { label: 'Stiahnuté aktualizácie Windowsu', hint: '', path: '', size: 3.4 * GB, files: 200 },
-            { label: 'Shader cache grafiky', hint: '', path: '', size: 2.1 * GB, files: 400 },
+            { label: 'Shader cache grafiky', hint: '', path: 'C:\\Users\\Alex\\AppData\\Local\\NVIDIA\\DXCache', size: 2.1 * GB, files: 400, how: 'contents' },
           ],
           installers: [
             { id: 0, path: 'C:\\Users\\Alex\\Downloads\\Win11_24H2_Slovak_x64.iso', size: 5.8 * GB, age_days: 210, reason: 'installer' },
@@ -248,6 +252,30 @@
           { label: 'Windows (DirectX)', path: 'C:\\Users\\Alex\\AppData\\Local\\D3DSCache', size: 0.4 * GB },
         ];
         case 'appx_list': return mockApps;
+        case 'stability_report': return {
+          days: 30, read_ok: true, whea_fatal: 2, whea_corrected: 7, disk_errors: 0, disk_resets: 0, gpu_driver: 'nvlddmkm',
+          blue_screens: [{ time: Date.now() / 1000 - 3 * 86400, code: '0x00000124', name: 'WHEA_UNCORRECTABLE_ERROR', meaning: 'Hardvérová chyba, ktorú nebolo možné opraviť. Najčastejšie procesor: pretaktovanie, napätie alebo starý BIOS.' },
+            { time: Date.now() / 1000 - 9 * 86400, code: '0x00000124', name: 'WHEA_UNCORRECTABLE_ERROR', meaning: '' }],
+          sudden_offs: [Date.now() / 1000 - 12 * 86400], gpu_resets: [Date.now() / 1000 - 2 * 86400],
+          apps: [{ app: 'Cyberpunk2077.exe', count: 4, hangs: 0, last: Date.now() / 1000 - 86400, module: 'nvwgf2umx.dll', hint: 'Ovládač grafiky NVIDIA' },
+            { app: 'explorer.exe', count: 0, hangs: 2, last: Date.now() / 1000 - 5 * 86400, module: null, hint: null }],
+        };
+        case 'disks_list': return [
+          { id: '0', name: 'Samsung SSD 990 PRO 2TB', media: 'SSD', bus: 'NVMe', health: 'Healthy', size: 2000 * GB, system: true },
+          { id: '1', name: 'WD_BLACK SN850X 4000GB', media: 'SSD', bus: 'NVMe', health: 'Healthy', size: 4000 * GB, system: false },
+        ];
+        case 'deep_check': return {
+          disks: [{ id: '0', wear: 3, temp: 41, temp_max: 68, hours: 5120, read_err: 0, write_err: 0, read_unc: 0, write_unc: 0 }, { id: '1', wear: 1, temp: 38, temp_max: 55, hours: 2100 }],
+          boots: Array.from({ length: 14 }, (_, i) => ({ at: new Date(Date.now() - (14 - i) * 2 * 864e5).toISOString(), boot: 18000 + i * 2500, main: 11000 + i * 200, post: 7000 + i * 2300 })),
+          restore: [{ at: new Date(Date.now() - 6 * 864e5).toISOString(), desc: 'Windows Update' }],
+        };
+        case 'restore_status': return { protection: true, last: mockRestore, error: null };
+        case 'storage_growth': return { since: Date.now() / 1000 - 21 * 86400, total_before: 701 * GB, total_after: 743 * GB, items: [
+          { path: 'C:\\Users\\Alex\\Videos\\ShapeFX\\CacheClip', before: 12 * GB, after: 41 * GB, delta: 29 * GB },
+          { path: 'C:\\Program Files\\Steam\\steamapps\\common\\Baldurs Gate 3', before: 0, after: 128 * GB, delta: 128 * GB },
+          { path: 'C:\\Users\\Alex\\Downloads', before: 52 * GB, after: 38 * GB, delta: -14 * GB },
+        ] };
+        case 'storage_clean': return args.items.map((it) => { const i = mockCaches.findIndex((c) => c.path === it.path); const f = i >= 0 ? mockCaches[i].size : 3 * GB; if (i >= 0) mockCaches.splice(i, 1); mockChanges.push({ at: Date.now() / 1000, id: (it.kind === 'cache' ? 'clean:' : it.kind === 'bin' ? 'bin' : 'trash:') + it.path, name: it.label, toggle: null, enabled: false, undone: false, detail: (it.kind === 'trash' ? 'Do Koša · ' : 'Uvoľnené ') + (f / GB).toFixed(1).replace('.', ',') + ' GB' }); return { ok: true, error: null, elevated: false, freed: f }; });
         case 'tweaks_list': return mockTweaks.map((t) => ({ ...t }));
         case 'save_card': return 'C:\\Users\\Alex\\Pictures\\WhatsInside\\WhatsInside-PC-1760900000.png';
         case 'procs_snapshot': return procs();
@@ -255,7 +283,8 @@
         case 'changes_list': return mockChanges;
         case 'changes_undo': { const c = mockChanges[args.index]; c.undone = true; const it = mockAuto.find((x) => x.id === c.id); if (it) it.enabled = !c.enabled; const tw = c.toggle && mockTweaks.find((x) => 'tweak:' + x.key === c.id); if (tw) tw.on = !c.enabled; return null; }
         case 'actions_apply': return args.actions.map((a) => {
-          if (a.op === 'restart_explorer' || a.op === 'launch') return { ok: true, error: null, elevated: false };
+          if (a.op === 'restart_explorer' || a.op === 'launch' || a.op === 'enable_protection') return { ok: true, error: null, elevated: false };
+          if (a.op === 'restore_point') { mockRestore = Date.now() / 1000; mockChanges.push({ at: Date.now() / 1000, id: 'restore', name: 'Bod obnovenia systému', toggle: null, enabled: true, undone: false, detail: 'Vytvorený pred zmenami' }); return { ok: true, error: null, elevated: true }; }
           if (a.op === 'uninstall') { const i = mockApps.findIndex((x) => x.full === a.full); if (i >= 0) mockApps.splice(i, 1); mockChanges.push({ at: Date.now() / 1000, id: 'appx:' + a.full.split('_')[0], name: a.name, toggle: null, enabled: false, undone: false }); return { ok: true, error: null, elevated: false }; }
           if (a.op === 'kill') { mockChanges.push({ at: Date.now() / 1000, id: 'kill:' + a.pid, name: a.exe, toggle: null, enabled: false, undone: false }); return { ok: true, error: null, elevated: false }; }
           if (a.toggle.t === 'tweak') { const t = mockTweaks.find((x) => x.key === a.toggle.key); if (t) t.on = a.enable; }

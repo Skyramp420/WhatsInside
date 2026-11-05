@@ -353,7 +353,12 @@ pub fn apply(actions: Vec<Action>) -> Vec<Outcome> {
                 undone: false,
                 detail: o.freed.map(|f| format!("Vysypaný · uvoľnené {}", human(f))),
             }),
-            Action::RestorePoint => log.push(Change {
+            Action::RestorePoint => {
+                let mut st = restore_state();
+                st.last = now();
+                st.error = None;
+                save_restore_state(&st);
+                log.push(Change {
                 at: now(),
                 id: "restore".into(),
                 name: "Bod obnovenia systému".into(),
@@ -361,7 +366,8 @@ pub fn apply(actions: Vec<Action>) -> Vec<Outcome> {
                 enabled: true,
                 undone: false,
                 detail: Some("Vytvorený pred zmenami".into()),
-            }),
+                })
+            }
             Action::Launch { .. } | Action::RestartExplorer | Action::EnableProtection => {}
         }
     }

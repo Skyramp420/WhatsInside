@@ -248,6 +248,7 @@ const TABS = [
   ['files', 'Najväčšie súbory'],
   ['old', 'Staré súbory'],
   ['cache', 'Na uvoľnenie'],
+  ['growth', 'Čo narástlo'],
 ];
 
 function renderStorage() {
@@ -257,7 +258,10 @@ function renderStorage() {
     actions.innerHTML = '';
     body.innerHTML = `<h2 style="margin-top:0">Vyber disk, ktorý chceš prezrieť</h2>
       <div class="drives">${st.drives.map(driveCard).join('') || '<div class="card empty">Nenašiel som žiadny disk.</div>'}</div>
-      <div class="note">Skenovanie len číta, nič nemaže. Systémové priečinky, ku ktorým nemám prístup, preskočím.</div>`;
+      <label class="card fastsw"><span class="ricon">${ICON.bolt}</span><div><b>Rýchly scan cez MFT</b><span>Disk s NTFS prečítam priamo z jeho tabuľky súborov, ako WizTree. Celý disk za pár sekúnd namiesto minút, vypýta si to povolenie správcu. Pri iných diskoch skenujem bežne.</span></div>
+        <span class="switch"><input type="checkbox" id="fastScan" ${localStorageGet('fastScan') !== 'off' ? 'checked' : ''}><i></i></span></label>
+      <div class="note">Skenovanie len číta. Mazať budeš len to, čo sám potvrdíš.</div>`;
+    $('#fastScan').onchange = (e) => localStorageSet('fastScan', e.target.checked ? 'on' : 'off');
     $$('.drive', body).forEach((el) => {
       const go = () => startScan(el.dataset.root);
       el.onclick = go;
@@ -272,11 +276,14 @@ function renderStorage() {
     const p = used ? Math.min(0.99, s.bytes / used) : null;
     if (!$('#scanCard')) {
       body.innerHTML = `<div class="card scanning withart land" id="scanCard"><div class="artbox">${scanArt()}</div><div>
-        <div class="title">Skenujem ${esc(s.root)}</div>
-        <div class="note" style="margin-top:4px">Prechádzam všetky priečinky a súbory. Na veľkom disku to chvíľu trvá.</div>
+        <div class="title" id="scTitle">Skenujem ${esc(s.root)}</div>
+        <div class="note" id="scNote" style="margin-top:4px">Prechádzam všetky priečinky a súbory. Na veľkom disku to chvíľu trvá.</div>
         <div class="nums"><div>Súbory<b id="scF">0</b></div><div>Priečinky<b id="scD">0</b></div><div>Veľkosť<b id="scB">0 B</b></div><div>Čas<b id="scT">0 s</b></div></div>
         <div class="bar" id="scBar"><i></i></div></div></div>`;
     }
+    const mftWait = s.method === 'mft' && !s.files;
+    $('#scTitle').textContent = s.method === 'mft' ? `Rýchly scan ${s.root}` : `Skenujem ${s.root}`;
+    $('#scNote').textContent = mftWait ? 'Potvrď okno UAC. Potom prečítam tabuľku súborov disku, trvá to pár sekúnd.' : s.method === 'mft' ? 'Skladám strom priečinkov z tabuľky súborov.' : 'Prechádzam všetky priečinky a súbory. Na veľkom disku to chvíľu trvá.';
     $('#scF').textContent = sk(s.files);
     $('#scD').textContent = sk(s.dirs);
     $('#scB').textContent = bytes(s.bytes);
@@ -299,7 +306,7 @@ function renderStorage() {
     if (s.cloud_bytes) notes.push(`${bytes(s.cloud_bytes)} v OneDrive je len online a na disku nezaberá miesto, preto to nerátam.`);
     body.innerHTML = `
       <div class="stats">
-        <div class="card stat land" style="--i:0"><div class="k">Naskenované za ${sk(s.elapsed_ms / 1000, s.elapsed_ms < 10000 ? 1 : 0)} s</div><div class="v num">${bytes(s.bytes)}</div></div>
+        <div class="card stat land" style="--i:0"><div class="k">Naskenované za ${sk(s.elapsed_ms / 1000, s.elapsed_ms < 10000 ? 1 : 0)} s${s.method === "mft" ? " · rýchly scan" : ""}</div><div class="v num">${bytes(s.bytes)}</div></div>
         <div class="card stat land click" style="--i:1" data-tab="owners"><div class="k">Hry</div><div class="v num">${bytes(st.owners?.games_total || 0)}<small>${st.owners?.games.length || 0} ${plural(st.owners?.games.length || 0, 'hra', 'hry', 'hier')}</small></div></div>
         <div class="card stat land click" style="--i:2" data-tab="cache"><div class="k">Môžeš uvoľniť</div><div class="v num">${bytes(cacheTotal)}</div></div>
         <div class="card stat land click" style="--i:3" data-tab="old"><div class="k">Staré a zabudnuté</div><div class="v num">${bytes(oldTotal)}</div></div>
@@ -346,7 +353,8 @@ async function startScan(root) {
   st.query = '';
   st.results = null;
   try {
-    await invoke('storage_start', { root });
+    const fast = localStorageGet('fastScan') !== 'off' && (st.drive?.fs || '').toUpperCase() === 'NTFS';
+    await invoke('storage_start', { root, fast });
   } catch (e) {
     setStatus('Nepodarilo sa', String(e), 'rec');
     return;
@@ -362,9 +370,10 @@ async function pollScan() {
     renderStorage();
     st.timer = setTimeout(pollScan, document.hidden ? 1000 : 250);
   } else if (st.status.phase === 'done') {
-    [st.top, st.caches, st.owners, st.old] = await Promise.all([
-      invoke('storage_top_files'), invoke('storage_caches'), invoke('storage_owners'), invoke('storage_old'),
+    [st.top, st.caches, st.owners, st.old, st.growth] = await Promise.all([
+      invoke('storage_top_files'), invoke('storage_caches'), invoke('storage_owners'), invoke('storage_old'), invoke('storage_growth').catch(() => null),
     ]);
+    if (st.status.note && !st.noteShown) { st.noteShown = true; toast(`Rýchly scan nešiel (${st.status.note}), skenoval som bežne.`, 'err'); }
     $('#storageBody').innerHTML = '';
     await openNode(0, { first: true });
     helperDirty = true;
@@ -638,7 +647,36 @@ function fileRow(path, size, max, i, extra = '') {
     <span class="nm">${esc(name)} <span class="dim">${esc(hint || dir)}</span></span>
     <div class="bar"><i style="width:${((size / max) * 100).toFixed(1)}%;background:var(--blue)"></i></div>
     <span class="sz num">${bytes(size)}</span><span class="pct">${extra}</span>
-    <span><button class="btn icon ghost rev" title="Ukázať v Prieskumníkovi">${ICON.reveal}</button></span></div>`;
+    <span class="racts"><button class="btn icon ghost trash" title="Presunúť do Koša">${ICON.trash}</button><button class="btn icon ghost rev" title="Ukázať v Prieskumníkovi">${ICON.reveal}</button></span></div>`;
+}
+
+function bindTrash(box) {
+  $$('.lrow[data-path] .trash', box).forEach((b) => (b.onclick = (e) => {
+    e.stopPropagation();
+    const path = b.closest('.lrow').dataset.path;
+    const [name] = splitPath(path);
+    const m = modal(`<h3>Presunúť do Koša?</h3><p class="mp"><b>${esc(name)}</b><br>${esc(path)}</p>
+      <p class="mp">Miesto sa uvoľní, až keď Kôš vysypeš. Dovtedy sa dá súbor obnoviť.</p>
+      <div class="mact"><button class="btn" data-close>Zrušiť</button><button class="btn danger" id="trGo">Do Koša</button></div>`);
+    $('#trGo', m).onclick = () => { closeModal(); cleanItems([{ kind: 'trash', path, label: name }]); };
+  }));
+}
+
+/** Runs cleaning, shows what it freed and refreshes the storage view. */
+async function cleanItems(items) {
+  let res;
+  try { res = await invoke('storage_clean', { items }); }
+  catch (e) { toast(String(e), 'err'); return; }
+  const freed = res.filter((r) => r.ok).reduce((a, r) => a + (r.freed || 0), 0);
+  const bad = res.find((r) => !r.ok);
+  if (res.some((r) => r.ok)) toast(items.every((i) => i.kind === 'trash') ? `Presunuté do Koša: ${bytes(freed)}` : `Uvoľnené ${bytes(freed)}`);
+  if (bad) toast(bad.error || 'Niečo sa nepodarilo.', 'err');
+  if (st.status?.phase === 'done') {
+    [st.top, st.caches, st.old] = await Promise.all([invoke('storage_top_files'), invoke('storage_caches'), invoke('storage_old')]);
+    if (st.listing) await openNode(st.listing.node.id, { keepTab: true, keepList: true });
+    renderList(false);
+  }
+  helperDirty = true;
 }
 
 function bindReveal(box) {
@@ -714,7 +752,7 @@ function renderList(animate = false) {
   } else if (st.tab === 'files') {
     if (!st.top.length) { box.innerHTML = `<div class="empty">${ICON.file}Žiadne veľké súbory.</div>`; return; }
     box.innerHTML = st.top.map((f, i) => fileRow(f.path, f.size, st.top[0].size, animate ? i : 99)).join('');
-    bindReveal(box);
+    bindReveal(box); bindTrash(box);
   } else if (st.tab === 'old') {
     const inst = st.old.filter((o) => o.reason === 'installer'), old = st.old.filter((o) => o.reason === 'old');
     if (!st.old.length) { box.innerHTML = `<div class="empty">${ICON.check}Nenašiel som nič starého ani zabudnutého.</div>`; return; }
@@ -727,15 +765,43 @@ function renderList(animate = false) {
       (old.length ? `<div class="lsec">Veľké súbory, na ktoré si dlho nesiahol<span class="num">${bytes(old.reduce((a, x) => a + x.size, 0))}</span></div>
         <div class="lhint">Nezmenené viac ako rok. Neznamená to, že sú zbytočné: skontroluj, či ich ešte potrebuješ, prípadne ich presuň na iný disk.</div>` +
         old.map((o) => fileRow(o.path, o.size, max, animate ? i++ : 99, age(o.age_days))).join('') : '');
+    bindReveal(box); bindTrash(box);
+  } else if (st.tab === 'growth') {
+    const g = st.growth;
+    if (!g || !g.since) { box.innerHTML = `<div class="empty">${ICON.clock}Toto je prvý sken tohto disku. Pri ďalšom skene ti ukážem, čo odvtedy narástlo.</div>`; return; }
+    const d = g.total_after - g.total_before;
+    const max = Math.max(1, ...g.items.map((x) => Math.abs(x.delta)));
+    box.innerHTML = `<div class="cache"><div><div class="t">Od skenu ${new Date(g.since * 1000).toLocaleDateString('sk-SK', { day: 'numeric', month: 'long' })}: ${d >= 0 ? '+' : '−'}${bytes(Math.abs(d))}</div>
+      <div class="h">Priečinky, ktoré sa zmenili aspoň o 256 MB. Ukazujem tie najhlbšie, ktoré zmenu vysvetľujú.</div></div></div>` +
+      (g.items.length ? g.items.map((x, i) => `<div class="lrow path${land(i)}" data-path="${esc(x.path)}"><span class="ic ${x.delta > 0 ? 'grow' : 'shrink'}">${x.delta > 0 ? '▲' : '▼'}</span>
+        <span class="nm">${esc(splitPath(x.path)[0])} <span class="dim">${esc(splitPath(x.path)[1])}</span></span>
+        <div class="bar"><i style="width:${((Math.abs(x.delta) / max) * 100).toFixed(1)}%;background:${x.delta > 0 ? 'var(--amber)' : 'var(--mint)'}"></i></div>
+        <span class="sz num ${x.delta > 0 ? 'up' : 'down'}">${x.delta > 0 ? '+' : '−'}${bytes(Math.abs(x.delta))}</span><span class="pct num">${bytes(x.after)}</span>
+        <span><button class="btn icon ghost rev" title="Otvoriť v Prieskumníkovi">${ICON.reveal}</button></span></div>`).join('') : '<div class="empty">Nič výrazné sa nezmenilo.</div>');
     bindReveal(box);
   } else {
     if (!st.caches.length) { box.innerHTML = `<div class="empty">${ICON.check}Nenašiel som žiadnu známu cache, ktorá by sa oplatila mazať.</div>`; return; }
     const total = st.caches.reduce((a, c) => a + c.size, 0);
+    const safe = st.caches.filter((c) => c.how === 'contents');
+    const safeTotal = safe.reduce((a, c) => a + c.size, 0);
+    const btn = (c, i) => c.how === 'contents' || c.how === 'careful' ? `<button class="btn small ${c.how === 'careful' ? '' : 'primary'} clean" data-i="${i}">Vyčistiť</button>`
+      : c.how === 'bin' ? `<button class="btn small primary clean" data-i="${i}">Vysypať</button>` : '<span class="badge maybe" title="Toto bezpečne vyčistí len Windows">Cez Windows</span>';
     box.innerHTML = `<div class="cache" style="padding-bottom:6px"><div><div class="t">Spolu sa dá uvoľniť ${bytes(total)}</div>
-      <div class="h">Zatiaľ nič nemažem. Ku každej položke ti napíšem, ako ju bezpečne vyčistiť.</div></div></div>` +
-      st.caches.map((c, i) => `<div class="cache${land(i)}" data-i="${i}"><div><div class="t">${esc(c.label)}</div><div class="p">${esc(c.path)}</div><div class="h">${esc(c.hint)}</div></div>
-        <span class="num">${bytes(c.size)}</span><button class="btn icon ghost" title="Otvoriť v Prieskumníkovi">${ICON.reveal}</button></div>`).join('');
-    $$('.cache[data-i]', box).forEach((r) => ($('button', r).onclick = () => reveal(st.caches[+r.dataset.i].path)));
+      <div class="h">Cache sa maže natrvalo, appky si ju vytvoria znova. Súbory, ktoré sa práve používajú, preskočím.</div></div>
+      ${safe.length ? `<button class="btn primary" id="cleanAll">${ICON.broom}Vyčistiť bezpečné (${bytes(safeTotal)})</button>` : ''}</div>` +
+      st.caches.map((c, i) => `<div class="cache${land(i)}" data-i="${i}"><div><div class="t">${esc(c.label)}${c.how === 'careful' ? '<span class="badge lv-amber">Zváž</span>' : ''}</div><div class="p">${esc(c.path)}</div><div class="h">${esc(c.hint)}</div></div>
+        <span class="num">${bytes(c.size)}</span>${btn(c, i)}<button class="btn icon ghost rv" title="Otvoriť v Prieskumníkovi">${ICON.reveal}</button></div>`).join('');
+    $$('.cache[data-i] .rv', box).forEach((b) => (b.onclick = () => reveal(st.caches[+b.closest('.cache').dataset.i].path)));
+    const confirmClean = (list) => {
+      const careful = list.filter((c) => c.how === 'careful');
+      const m = modal(`<h3>Vyčistiť ${list.length > 1 ? `${list.length} položiek` : esc(list[0].label)}?</h3>
+        <div class="mlist">${list.map((c) => `<div class="mrow"><span></span><div><b>${esc(c.label)}</b><span>${esc(c.path)}</span></div><span class="num">${bytes(c.size)}</span></div>`).join('')}</div>
+        ${careful.length ? `<p class="mnote">${ICON.warn}${esc(careful[0].hint)}</p>` : '<p class="mp">Cache sa zmaže natrvalo, appky si ju vytvoria znova. Ak niektorá appka beží, jej súbory preskočím.</p>'}
+        <div class="mact"><button class="btn" data-close>Zrušiť</button><button class="btn danger" id="clGo">Vyčistiť</button></div>`);
+      $('#clGo', m).onclick = () => { closeModal(); cleanItems(list.map((c) => ({ kind: c.how === 'bin' ? 'bin' : 'cache', path: c.path, label: c.label }))); };
+    };
+    $$('.cache[data-i] .clean', box).forEach((b) => (b.onclick = () => confirmClean([st.caches[+b.dataset.i]])));
+    if ($('#cleanAll')) $('#cleanAll').onclick = () => confirmClean(safe);
   }
 }
 
@@ -861,7 +927,7 @@ function killProcs(list, name) {
     <div class="mact"><button class="btn" data-close>Zrušiť</button><button class="btn danger" id="killGo">Ukončiť</button></div>`);
   $('#killGo', m).onclick = async () => {
     closeModal();
-    const res = await invoke('actions_apply', { actions: list.map((p) => ({ op: 'kill', pid: p.pid, exe: p.exe })) }).catch((e) => list.map(() => ({ ok: false, error: String(e) })));
+    const res = await invoke('actions_apply', { restore: wantRestore(), actions: list.map((p) => ({ op: 'kill', pid: p.pid, exe: p.exe })) }).catch((e) => list.map(() => ({ ok: false, error: String(e) })));
     const ok = res.filter((r) => r.ok).length, bad = res.find((r) => !r.ok);
     if (ok) toast(`Ukončené: ${ok}`);
     if (bad) toast(bad.error || 'Nepodarilo sa.', 'err');
@@ -984,7 +1050,7 @@ async function toggleItems(list, enable) {
   renderStartup();
   let res = [];
   try {
-    res = await invoke('actions_apply', { actions: list.map((i) => ({ op: 'startup', id: i.id, name: i.app || i.name, toggle: i.toggle, enable })) });
+    res = await invoke('actions_apply', { restore: wantRestore(), actions: list.map((i) => ({ op: 'startup', id: i.id, name: i.app || i.name, toggle: i.toggle, enable })) });
   } catch (e) { res = list.map(() => ({ ok: false, error: String(e) })); }
   list.forEach((i) => su.busy.delete(i.id));
   const ok = res.filter((r) => r.ok).length, bad = res.filter((r) => !r.ok);
@@ -1221,7 +1287,7 @@ async function applyTweaks(list, enable) {
   if (!list.length) return;
   list.forEach((t) => tweakBusy.add(t.key));
   rerenderTweaks();
-  const res = await invoke('actions_apply', { actions: list.map((t) => ({ op: 'startup', id: `tweak:${t.key}`, name: t.title, toggle: { t: 'tweak', key: t.key }, enable })) })
+  const res = await invoke('actions_apply', { restore: wantRestore(), actions: list.map((t) => ({ op: 'startup', id: `tweak:${t.key}`, name: t.title, toggle: { t: 'tweak', key: t.key }, enable })) })
     .catch((e) => list.map(() => ({ ok: false, error: String(e) })));
   list.forEach((t) => tweakBusy.delete(t.key));
   const ok = list.filter((_, i) => res[i]?.ok), bad = res.find((r) => !r.ok);
@@ -1529,7 +1595,7 @@ function bindPlay() {
     const sel = $$('input[type=checkbox]', box).filter((c) => c.checked).map((c) => c.dataset.k);
     const groups = playCandidates().filter((g) => sel.includes(g.key));
     const relaunch = groups.map((g) => ({ name: g.name, path: (g.procs.find((p) => p.path && /\.exe$/i.test(p.path)) || {}).path })).filter((x) => x.path);
-    const res = await invoke('actions_apply', { actions: groups.flatMap((g) => g.procs.map((p) => ({ op: 'kill', pid: p.pid, exe: p.exe }))) }).catch(() => []);
+    const res = await invoke('actions_apply', { restore: wantRestore(), actions: groups.flatMap((g) => g.procs.map((p) => ({ op: 'kill', pid: p.pid, exe: p.exe }))) }).catch(() => []);
     const ok = res.filter((r) => r.ok).length;
     localStorageSet('playClosed', JSON.stringify(relaunch));
     toast(ok ? `Zatvorené. Dobrú hru! 🎮` : 'Nepodarilo sa nič zatvoriť.', ok ? 'ok' : 'err');
@@ -1538,7 +1604,7 @@ function bindPlay() {
   };
   if ($('#playBack')) $('#playBack').onclick = async () => {
     const closed = JSON.parse(localStorageGet('playClosed') || '[]');
-    const res = await invoke('actions_apply', { actions: closed.map((c) => ({ op: 'launch', path: c.path })) }).catch(() => []);
+    const res = await invoke('actions_apply', { restore: wantRestore(), actions: closed.map((c) => ({ op: 'launch', path: c.path })) }).catch(() => []);
     const bad = res.filter((r) => !r.ok).length;
     toast(bad ? `Spustené, ${bad} sa nepodarilo.` : 'Spustené späť.', bad ? 'err' : 'ok');
     localStorageSet('playClosed', '[]');
@@ -1692,7 +1758,7 @@ function renderWindows() {
   bindTweakRows($('#winBody'));
   bindTips($('#winBody'));
   if ($('#rsExplorer')) $('#rsExplorer').onclick = async () => {
-    await invoke('actions_apply', { actions: [{ op: 'restart_explorer' }] }).catch(() => {});
+    await invoke('actions_apply', { restore: wantRestore(), actions: [{ op: 'restart_explorer' }] }).catch(() => {});
     wn.needExplorer = false; toast('Prieskumník reštartovaný'); renderWindows();
   };
   if ($('#winRec')) $('#winRec').onclick = () => {
@@ -1720,7 +1786,7 @@ function renderWindows() {
       $('#aGo', m).onclick = async () => {
         closeModal();
         $('#appxGo').disabled = true; $('#appxGo').textContent = 'Odinštalovávam…';
-        const res = await invoke('actions_apply', { actions: pick.map((a) => ({ op: 'uninstall', full: a.full, name: a.title })) }).catch((e) => pick.map(() => ({ ok: false, error: String(e) })));
+        const res = await invoke('actions_apply', { restore: wantRestore(), actions: pick.map((a) => ({ op: 'uninstall', full: a.full, name: a.title })) }).catch((e) => pick.map(() => ({ ok: false, error: String(e) })));
         const ok = res.filter((r) => r.ok).length, bad = res.find((r) => !r.ok);
         if (ok) toast(`Odinštalované: ${ok}`);
         if (bad) toast(bad.error || 'Niečo sa nepodarilo.', 'err');
@@ -1734,18 +1800,196 @@ function renderWindows() {
 $('#winRefresh').onclick = () => { tweakStates = null; wn.facts = null; wn.apps = null; loadWindows(); };
 views.windows = { enter() { loadWindows(); } };
 
+/* ========================================================== STABILITY */
+const sb = { report: null, disks: null, deep: null, deepBusy: false };
+const fmtDate = (unix) => new Date(unix * 1000).toLocaleString('sk-SK', { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' });
+
+async function loadStability() {
+  if (!sb.report) $('#stabBody').innerHTML = scanCard('Čítam denník Windowsu', 'Pády, modré obrazovky, hardvérové chyby a disky za posledných 30 dní.', ['Systémový denník', 'Pády appiek', 'Disky']);
+  const r = invoke('stability_report').then((x) => { tickStep(0); tickStep(1); return x; });
+  const d = invoke('disks_list').catch(() => []).then((x) => { tickStep(2); return x; });
+  if (!specs) specs = await invoke('pc_specs').catch(() => null);
+  [sb.report, sb.disks] = await Promise.all([r, d]);
+  renderStability();
+}
+
+/** Turns the report into plain-language findings. */
+function stabilityTips(r) {
+  const tips = [];
+  if (!r) return tips;
+  const intel1314 = /i[579]-1[34]\d{3}/i.test(specs?.cpu || '');
+  const bs = r.blue_screens;
+  if (bs.length) {
+    const codes = {};
+    bs.forEach((b) => (codes[b.code] = codes[b.code] || { ...b, n: 0 }).n++);
+    const top = Object.values(codes).sort((a, b) => b.n - a.n);
+    tips.push({ level: 'high', icon: 'warn', title: `${bs.length} ${plural(bs.length, 'modrá obrazovka', 'modré obrazovky', 'modrých obrazoviek')} za ${r.days} dní`,
+      text: top[0].meaning || 'Presnú príčinu ukáže výpis pádu.',
+      list: top.map((c) => [`${c.name || 'Neznámy kód'} (${c.code})`, `${c.n}×`]),
+      steps: [r.whea_fatal || top.some((c) => /WHEA|CLOCK_WATCHDOG/.test(c.name)) ? 'Ak máš zapnuté pretaktovanie alebo undervolt, vráť ho na predvolené.' : 'Aktualizuj ovládač grafiky a čipovej sady od výrobcu.',
+        'Ak to začalo po zapnutí XMP/EXPO, skús nižšiu rýchlosť RAM.', 'Presný ovládač, ktorý pád spôsobil, ukáže výpis (C:\\Windows\\Minidump) v appke WinDbg alebo BlueScreenView.'] });
+  }
+  if (r.whea_fatal || r.whea_corrected > 5) {
+    tips.push({ level: r.whea_fatal ? 'high' : 'mid', icon: 'cpu', title: r.whea_fatal ? `Hardvérové chyby: ${r.whea_fatal}× neopraviteľná` : `Hardvér hlási opravené chyby (${r.whea_corrected}×)`,
+      text: 'Windows zachytil chybu priamo z procesora, pamäte alebo PCIe zbernice (WHEA). Toto nie je problém softvéru: väčšinou nestabilné pretaktovanie, undervolt, XMP, alebo napätie procesora.' +
+        (intel1314 ? ' Máš Intel 13. alebo 14. generácie, ktoré majú známy problém s nestabilitou. Intel ho opravil v BIOSe.' : ''),
+      steps: [intel1314 ? 'Aktualizuj BIOS dosky na najnovšiu verziu, obsahuje opravu mikrokódu od Intelu. Potom nechaj nastavenia napájania na „Intel Default“.' : 'Vráť pretaktovanie a undervolt na predvolené.',
+        'Ak to nepomôže, otestuj pamäť (MemTest86) a skús vypnúť XMP/EXPO.'] });
+  }
+  if (r.sudden_offs.length) {
+    tips.push({ level: r.sudden_offs.length > 2 ? 'mid' : 'low', icon: 'power', title: `PC sa ${r.sudden_offs.length}× vyplo bez riadneho vypnutia`,
+      text: 'Bez modrej obrazovky: výpadok prúdu, podržanie vypínača, alebo zamrznutie, po ktorom si ho reštartoval. Ak sa vypína samo počas hry, často to býva zdroj alebo prehrievanie.',
+      list: r.sudden_offs.slice(-5).reverse().map((t) => [fmtDate(t), '']) });
+  }
+  if (r.gpu_resets.length) {
+    tips.push({ level: r.gpu_resets.length > 2 ? 'mid' : 'low', icon: 'gpu', title: `Ovládač grafiky sa ${r.gpu_resets.length}× reštartoval`,
+      text: `Obrazovka na chvíľu sčernela a ovládač${r.gpu_driver ? ` (${r.gpu_driver})` : ''} sa obnovil. Príčinou býva ovládač, pretaktovanie grafiky alebo prehrievanie.`,
+      steps: ['Aktualizuj ovládač grafiky, ideálne čistou inštaláciou.', 'Ak máš grafiku pretaktovanú (MSI Afterburner a podobne), vráť ju na predvolené.', 'Zmeraj FPS v záložke Hry, uvidíš aj teplotu grafiky.'] });
+  }
+  if (r.disk_errors || r.disk_resets) {
+    tips.push({ level: 'high', icon: 'drive', title: 'Disk hlási chyby',
+      text: `${r.disk_errors ? `${r.disk_errors}× chyba čítania alebo zápisu` : ''}${r.disk_errors && r.disk_resets ? ', ' : ''}${r.disk_resets ? `${r.disk_resets}× reset radiča` : ''}. Zálohuj dôležité dáta a pozri zdravie diskov nižšie.`,
+      steps: ['Spusti hĺbkovú kontrolu nižšie (opotrebenie, chyby, teplota).', 'Pri SATA diskoch skús iný kábel alebo port.', 'Aktualizuj firmvér SSD cez appku výrobcu.'] });
+  }
+  return tips;
+}
+
+function healthBadge(d, rel) {
+  const bad = d.health && d.health !== 'Healthy';
+  const worn = rel?.wear != null && rel.wear >= 80;
+  const unc = (rel?.read_unc || 0) + (rel?.write_unc || 0);
+  if (bad || unc > 0) return '<span class="badge lv-rec">Problém</span>';
+  if (worn || (rel?.temp != null && rel.temp >= 70)) return '<span class="badge lv-amber">Pozor</span>';
+  return '<span class="badge needed">V poriadku</span>';
+}
+
+function bootChart(boots) {
+  const b = [...boots].filter((x) => x.boot > 0).sort((x, y) => x.at.localeCompare(y.at)).slice(-20);
+  if (!b.length) return '<div class="empty">Windows nemá zaznamenané časy štartu.</div>';
+  const max = Math.max(...b.map((x) => x.boot));
+  const avg = b.reduce((a, x) => a + x.boot, 0) / b.length;
+  const first = b.slice(0, Math.max(1, Math.floor(b.length / 3))), last = b.slice(-Math.max(1, Math.floor(b.length / 3)));
+  const mean = (arr) => arr.reduce((a, x) => a + x.boot, 0) / arr.length;
+  const trend = b.length >= 6 ? mean(last) / mean(first) : 1;
+  const latest = b.at(-1);
+  return `<div class="bootsum"><div><span class="k">Posledný štart</span><span class="v num">${sk(latest.boot / 1000, 0)}<small>s</small></span></div>
+      <div><span class="k">Priemer</span><span class="v num">${sk(avg / 1000, 0)}<small>s</small></span></div>
+      <div><span class="k">Po prihlásení</span><span class="v num">${sk(latest.post / 1000, 0)}<small>s</small></span></div></div>
+    <div class="bars">${b.map((x) => `<div class="bcol" data-tip="${esc(new Date(x.at).toLocaleString('sk-SK'))}: ${sk(x.boot / 1000, 1)} s (systém ${sk(x.main / 1000, 1)} s, po prihlásení ${sk(x.post / 1000, 1)} s)"><i class="m" style="height:${(x.main / max) * 100}%"></i><i class="p" style="height:${(x.post / max) * 100}%"></i></div>`).join('')}</div>
+    <div class="blegend"><span class="m">Štart systému</span><span class="p">Po prihlásení (appky zo spúšťania)</span></div>
+    ${trend > 1.3 ? `<p class="why warn">Štart sa za posledné týždne predĺžil o ${sk((trend - 1) * 100, 0)} %. Časť „po prihlásení“ rastie, keď pribúdajú appky v spúšťaní.</p>` : ''}
+    ${latest.post > 30000 ? '<p class="why">Po prihlásení to trvá dlho. To sú appky, ktoré sa spúšťajú s Windowsom.</p><button class="btn small" id="toStartup">Pozrieť, čo sa spúšťa</button>' : ''}`;
+}
+
+function renderStability() {
+  const r = sb.report;
+  const tips = stabilityTips(r);
+  const actions = [];
+  const relById = new Map((sb.deep?.disks || []).map((x) => [x.id, x]));
+  $('#stabCount').textContent = tips.filter((t) => t.level === 'high').length || '';
+  const stat = (k, v, cls = '') => `<div class="card stat ${cls}"><div class="k">${k}</div><div class="v num">${v}</div></div>`;
+  $('#stabBody').innerHTML = `
+    ${r && !r.read_ok ? '<div class="card info"><p>Denník Windowsu sa nepodarilo prečítať celý. Výsledky môžu byť neúplné.</p></div>' : ''}
+    <div class="stats">
+      ${stat('Modré obrazovky', sk(r?.blue_screens.length || 0), r?.blue_screens.length ? 'bad' : '')}
+      ${stat('Náhle vypnutia', sk(r?.sudden_offs.length || 0))}
+      ${stat('Hardvérové chyby', sk((r?.whea_fatal || 0) + (r?.whea_corrected || 0)), r?.whea_fatal ? 'bad' : '')}
+      ${stat('Pády appiek', sk((r?.apps || []).reduce((a, x) => a + x.count, 0)))}
+    </div>
+    <div class="hint">Za posledných ${r?.days || 30} dní, z denníka udalostí Windowsu.</div>
+    ${tips.length ? tipCards(tips, actions) : `<div class="card empty">${ICON.check}Žiadne modré obrazovky, hardvérové chyby ani problémy s diskom. Systém je stabilný.</div>`}
+
+    ${r?.apps.length ? `<h2>Pády a zamrznutia appiek</h2><div class="card list">${r.apps.map((a) => `<div class="arow withicon crow2"><span class="ricon s-${a.count > 2 ? 'rec' : 'amber'}">${ICON.x}</span>
+      <div style="min-width:0"><div class="t">${esc(a.app)}${a.hint ? `<span class="badge maybe">${esc(a.hint)}</span>` : ''}</div>
+      <div class="a">${a.count ? `${a.count}× pád` : ''}${a.count && a.hangs ? ', ' : ''}${a.hangs ? `${a.hangs}× nereagovala` : ''} · naposledy ${fmtDate(a.last)}${a.module ? ` · modul ${esc(a.module)}` : ''}</div></div><span></span></div>`).join('')}</div>
+      <div class="note">Keď hra padá v module ovládača grafiky (nvwgf2umx, amdxx64…), býva to ovládač, pretaktovanie grafiky alebo nestabilný procesor, nie samotná hra.</div>` : ''}
+
+    <div class="h2row"><h2>Disky</h2><button class="btn small" id="deepGo" ${sb.deepBusy ? 'disabled' : ''}>${SHIELD}${sb.deep ? 'Skontrolovať znova' : 'Hĺbková kontrola'}</button></div>
+    <div class="hint">Hĺbková kontrola si vypýta povolenie správcu a prečíta opotrebenie SSD, teplotu a chyby. Zároveň zistí, ako dlho štartuje PC.</div>
+    <div class="card list">${(sb.disks || []).length ? sb.disks.map((d) => {
+      const rel = relById.get(d.id);
+      return `<div class="arow withicon"><span class="ricon">${ICON.drive}</span>
+        <div style="min-width:0"><div class="t">${esc(d.name)}${healthBadge(d, rel)}${d.system ? '<span class="badge maybe">Systémový</span>' : ''}</div>
+        <div class="a">${esc(d.media === 'Unspecified' ? '' : d.media)} ${esc(d.bus)} · ${bytes(d.size)}${d.health && d.health !== 'Healthy' ? ` · stav: ${esc(d.health)}` : ''}</div>
+        ${rel ? `<div class="drel">
+          ${rel.wear != null ? `<span>Opotrebenie <b>${rel.wear} %</b></span>` : ''}${rel.temp != null ? `<span>Teplota <b>${rel.temp} °C</b>${rel.temp_max ? ` (max ${rel.temp_max} °C)` : ''}</span>` : ''}
+          ${rel.hours != null ? `<span>Zapnutý <b>${sk(rel.hours)} h</b></span>` : ''}${(rel.read_unc || 0) + (rel.write_unc || 0) > 0 ? `<span class="bad">Neopravené chyby <b>${(rel.read_unc || 0) + (rel.write_unc || 0)}</b></span>` : ''}
+        </div>` : ''}</div><span></span></div>`;
+    }).join('') : '<div class="empty">Zoznam diskov sa nepodarilo načítať.</div>'}</div>
+    ${(sb.disks || []).some((d) => d.system && d.media === 'HDD') ? `<div class="card tipcard lvl-high" style="margin-top:12px"><div class="ti">${ICON.drive}</div><div class="tb"><div class="tt"><span>Windows beží z klasického pevného disku</span></div><div class="tx">Toto je najväčšia brzda, akú PC môže mať. Aj lacný SSD zrýchli štart, appky aj hry niekoľkonásobne. Žiadna optimalizácia Windowsu sa tomu nevyrovná.</div></div></div>` : ''}
+    ${(sb.deep?.disks || []).some((x) => x.wear != null && x.wear >= 80) ? `<div class="card tipcard lvl-high" style="margin-top:12px"><div class="ti">${ICON.warn}</div><div class="tb"><div class="tt"><span>SSD je takmer opotrebovaný</span></div><div class="tx">Pri opotrebení nad 80 % sa blíži koniec jeho garantovanej životnosti. Zálohuj si dáta a plánuj výmenu.</div></div></div>` : ''}
+
+    ${sb.deep ? `<h2>Ako dlho štartuje PC</h2><div class="card boot">${bootChart(sb.deep.boots)}</div>` : ''}
+  `;
+  $$('#stabBody [data-a]').forEach((b) => (b.onclick = () => actions[+b.dataset.a]?.()));
+  $('#deepGo').onclick = runDeep;
+  if ($('#toStartup')) $('#toStartup').onclick = () => setView('startup');
+  bindTips($('#stabBody'));
+}
+
+async function runDeep() {
+  sb.deepBusy = true;
+  renderStability();
+  toast('Potvrď okno UAC, hĺbková kontrola trvá pár sekúnd.');
+  try { sb.deep = await invoke('deep_check'); }
+  catch (e) { toast(String(e), 'err'); }
+  sb.deepBusy = false;
+  renderStability();
+  if (current === 'history') renderHistory();
+}
+
+$('#stabRefresh').onclick = () => { sb.report = null; loadStability(); };
+views.stability = { enter() { loadStability(); } };
+
+/* ---------------------------------------------------------- restore points */
+const wantRestore = () => localStorageGet('restorePoint') !== 'off';
+let restoreInfo = null;
+async function restoreCard() {
+  restoreInfo = await invoke('restore_status').catch(() => null);
+  const box = $('#restoreBox');
+  if (!box) return;
+  const r = restoreInfo;
+  const on = wantRestore();
+  const points = sb.deep?.restore || [];
+  box.innerHTML = `<div class="arow withicon srow ${on ? '' : 'isoff'}"><span class="ricon">${ICON.shield}</span>
+    <div style="min-width:0"><div class="t">Bod obnovenia pred zmenami${r?.protection === false ? '<span class="badge lv-amber">Ochrana systému je vypnutá</span>' : ''}</div>
+    <div class="a">Pred prvými zmenami dňa vytvorím bod obnovenia systému. Ak by sa niečo pokazilo tak, že sa ani nespustím, vrátiš PC cez Obnovenie systému. Stojí to jedno okno UAC denne.
+      ${r?.last ? `<br>Posledný bod obnovenia: ${fmtDate(r.last)}.` : ''}${r?.error ? `<br><span class="bad">Posledný pokus: ${esc(r.error)}</span>` : ''}</div>
+    ${points.length ? `<div class="a">Body obnovenia v systéme: ${points.slice(-3).reverse().map((p) => `${esc(p.desc)} (${new Date(p.at).toLocaleDateString('sk-SK')})`).join(', ')}</div>` : ''}
+    <div class="ract">${r?.protection === false ? `<button class="btn small" id="rpEnable">${SHIELD}Zapnúť ochranu systému</button>` : `<button class="btn small" id="rpNow">${SHIELD}Vytvoriť teraz</button>`}</div></div>
+    <div class="sw"><label class="switch"><input type="checkbox" id="rpToggle" ${on ? 'checked' : ''}><i></i></label></div></div>`;
+  $('#rpToggle').onchange = (e) => { localStorageSet('restorePoint', e.target.checked ? 'on' : 'off'); restoreCard(); };
+  const run = async (op, msg) => {
+    const res = await invoke('actions_apply', { actions: [{ op }] }).catch((e) => [{ ok: false, error: String(e) }]);
+    toast(res[0]?.ok ? msg : res[0]?.error || 'Nepodarilo sa.', res[0]?.ok ? 'ok' : 'err');
+    loadHistory();
+  };
+  if ($('#rpNow')) $('#rpNow').onclick = () => run('restore_point', 'Bod obnovenia vytvorený.');
+  if ($('#rpEnable')) $('#rpEnable').onclick = () => run('enable_protection', 'Ochrana systému zapnutá.');
+}
+
 /* ========================================================== HISTORY */
 const hi = { filter: 'all' };
 const HKINDS = [
   ['all', 'Všetko', () => true],
   ['startup', 'Spúšťanie', (c) => c.toggle && c.toggle.t !== 'tweak'],
   ['tweak', 'Úpravy', (c) => c.toggle?.t === 'tweak'],
+  ['clean', 'Uvoľnené miesto', (c) => /^(clean|trash|bin)/.test(c.id)],
   ['apps', 'Odinštalované appky', (c) => !c.toggle && c.id.startsWith('appx:')],
-  ['kill', 'Ukončené procesy', (c) => !c.toggle && !c.id.startsWith('appx:')],
+  ['kill', 'Ukončené procesy', (c) => c.id.startsWith('kill:')],
 ];
+/** Bytes back out of "Uvoľnené 12,3 GB". */
+function parseFreed(d) {
+  const m = /([\d,]+)\s*(B|KB|MB|GB|TB)/.exec(d || '');
+  if (!m) return 0;
+  return parseFloat(m[1].replace(',', '.')) * 1024 ** ['B', 'KB', 'MB', 'GB', 'TB'].indexOf(m[2]);
+}
+
 function changeText(c) {
   const t = c.toggle;
   if (!t && c.id.startsWith('appx:')) return ['Odinštalované · späť z Microsoft Store', 'rec'];
+  if (!t && c.id === 'restore') return [c.detail || 'Bod obnovenia', 'mint'];
+  if (!t && /^(clean|trash|bin)/.test(c.id)) return [c.detail || 'Vyčistené', 'mint'];
   if (!t) return ['Proces ukončený', 'rec'];
   if (t.t === 'tweak') return [c.enabled ? 'Úprava zapnutá' : 'Úprava vypnutá', c.enabled ? 'mint' : 'amber'];
   const where = { approved: 'zo spúšťania', task: 'naplánovaná úloha', service: 'služba' }[t.t] || '';
@@ -1778,8 +2022,9 @@ function renderHistory() {
       <div class="card stat"><div class="k">Zmien celkom</div><div class="v num">${sk(all.length)}</div></div>
       <div class="card stat"><div class="k">Platí teraz</div><div class="v num">${sk(active.length)}</div></div>
       <div class="card stat"><div class="k">Vrátené</div><div class="v num">${sk(all.filter((c) => c.undone).length)}</div></div>
-      <div class="card stat"><div class="k">Ukončené a odinštalované</div><div class="v num">${sk(all.filter((c) => !c.toggle).length)}</div></div>
+      <div class="card stat"><div class="k">Uvoľnené miesto</div><div class="v num">${bytes(all.filter((c) => /^(clean|bin)/.test(c.id)).reduce((a, c) => a + parseFreed(c.detail), 0))}</div></div>
     </div>
+    <div class="card list" id="restoreBox"></div>
     <div class="chips">${HKINDS.map(([k, l, fn]) => { const n = all.filter(fn).length; return k !== 'all' && !n ? '' : `<button class="chip ${hi.filter === k ? 'on' : ''}" data-k="${k}">${l}<span class="n">${n}</span></button>`; }).join('')}</div>
     ${list.length ? (() => {
       let out = '', day = '';
@@ -1789,7 +2034,7 @@ function renderHistory() {
         const [txt, dot] = changeText(c);
         const canUndo = c.toggle && !c.undone && latest.get(c.id) === c.i;
         const tw = c.toggle?.t === 'tweak' ? (tweakStates || []).find((x) => x.key === c.toggle.key) : null;
-        const hic = !c.toggle ? (c.id.startsWith('appx:') ? 'trash' : 'x') : c.toggle.t === 'tweak' ? (tw?.icon || 'sparkle') : { approved: 'rocket', task: 'clock', service: 'gear' }[c.toggle.t] || 'rocket';
+        const hic = !c.toggle ? (c.id.startsWith('appx:') ? 'trash' : c.id === 'restore' ? 'shield' : c.id.startsWith('clean') || c.id === 'bin' ? 'broom' : c.id.startsWith('trash') ? 'trash' : 'x') : c.toggle.t === 'tweak' ? (tw?.icon || 'sparkle') : { approved: 'rocket', task: 'clock', service: 'gear' }[c.toggle.t] || 'rocket';
         out += `<div class="arow hrow ${c.undone ? 'isoff' : ''}"><span class="ricon s-${c.undone ? 'off' : dot}">${ICON[hic] || ICON.sparkle}</span>
           <div style="min-width:0"><div class="t">${esc(c.name)}${c.undone ? '<span class="badge off">Vrátené</span>' : ''}</div><div class="a">${esc(txt)}</div></div>
           <span class="time num">${new Date(c.at * 1000).toLocaleTimeString('sk-SK', { hour: '2-digit', minute: '2-digit' })}</span>
@@ -1807,6 +2052,7 @@ function renderHistory() {
     loadHistory();
   }));
   $('#historyCount').textContent = '';
+  restoreCard();
 }
 views.history = { enter() { loadHistory(); } };
 
@@ -1819,21 +2065,23 @@ async function runHelper() {
   helperBusy = true;
   const body = $('#helperBody');
   if (!body.children.length) {
-    body.innerHTML = scanCard('Kontrolujem tvoj systém', 'Chvíľu to trvá, pozerám sa všade naraz.', ['Disky', 'Dočasné súbory a cache', 'Procesy', 'Čo sa spúšťa s Windowsom', 'Hardvér a monitory', 'Nastavenia Windowsu']);
+    body.innerHTML = scanCard('Kontrolujem tvoj systém', 'Chvíľu to trvá, pozerám sa všade naraz.', ['Disky', 'Dočasné súbory a cache', 'Procesy', 'Čo sa spúšťa s Windowsom', 'Hardvér a monitory', 'Nastavenia Windowsu', 'Pády a chyby']);
   }
   try {
     const step = (i, p) => p.then((x) => { tickStep(i); return x; });
-    const [facts, quick, snap, auto, drives, sp, ds] = await Promise.all([
+    const [facts, quick, snap, auto, drives, sp, ds, stab] = await Promise.all([
       step(5, invoke('system_facts')), step(1, invoke('quick_check')), step(2, invoke('procs_snapshot')),
       step(3, startupItems ? Promise.resolve(startupItems) : invoke('autostart_list')),
       step(0, invoke('storage_drives')), specs ? Promise.resolve(specs) : invoke('pc_specs').catch(() => null),
       step(4, displays ? Promise.resolve(displays) : invoke('displays_list').catch(() => [])),
+      step(6, sb.report ? Promise.resolve(sb.report) : invoke('stability_report').catch(() => null)),
     ]);
+    sb.report = stab;
     startupItems = auto;
     if (sp) specs = sp;
     displays = ds;
     renderStartup();
-    renderHelper(buildAdvice({ facts, quick, snap, auto, drives, specs: sp, displays: ds }));
+    renderHelper(buildAdvice({ facts, quick, snap, auto, drives, specs: sp, displays: ds, stab }));
     helperDirty = false;
   } catch (e) {
     body.innerHTML = `<div class="card empty">${ICON.warn}Kontrola sa nepodarila: ${esc(e)}</div>`;
@@ -1842,8 +2090,27 @@ async function runHelper() {
 }
 
 /** Turns raw facts into plain-language advice. Every item says why and how. */
-function buildAdvice({ facts, quick, snap, auto, drives, specs, displays }) {
+function quickClean(caches) {
+  const list = caches.filter((c) => c.how === 'contents');
+  if (!list.length) { setView('storage'); return; }
+  const total = list.reduce((a, c) => a + c.size, 0);
+  const m = modal(`<h3>Vyčistiť ${bytes(total)}?</h3>
+    <div class="mlist">${list.map((c) => `<div class="mrow"><span></span><div><b>${esc(c.label)}</b><span>${esc(c.path)}</span></div><span class="num">${bytes(c.size)}</span></div>`).join('')}</div>
+    <p class="mp">Cache sa zmaže natrvalo, appky si ju vytvoria znova. Súbory, ktoré sa práve používajú, preskočím.</p>
+    <div class="mact"><button class="btn" data-close>Zrušiť</button><button class="btn danger" id="qcGo">Vyčistiť</button></div>`);
+  $('#qcGo', m).onclick = async () => {
+    closeModal();
+    await cleanItems(list.map((c) => ({ kind: 'cache', path: c.path, label: c.label })));
+    helperDirty = true; runHelper();
+  };
+}
+
+function buildAdvice({ facts, quick, snap, auto, drives, specs, displays, stab }) {
   const tips = [], ok = [];
+  // Crashes and hardware errors from the event log
+  stabilityTips(stab).forEach((t) => tips.push({ ...t, steps: undefined, action: { label: 'Stabilita', run: () => setView('stability') } }));
+  if (stab && !stab.blue_screens.length && !stab.whea_fatal) ok.push(`Žiadne modré obrazovky za ${stab.days} dní`);
+
   // 0. Hardware set up wrong (RAM profile, refresh rate, cable, driver)
   const hw = hwChecks(specs, displays, facts);
   hw.tips.forEach((t) => tips.push({ ...t, action: t.action || { label: 'Výkon', run: () => setView('perf') } }));
@@ -1869,8 +2136,8 @@ function buildAdvice({ facts, quick, snap, auto, drives, specs, displays }) {
     tips.push({ level: cacheTotal > 10 * 2 ** 30 ? 'mid' : 'low', icon: 'broom', gain: cacheTotal, title: `Môžeš uvoľniť ${bytes(cacheTotal)} cache`,
       text: 'Dočasné súbory a cache, ktoré si appky vytvoria znova. Ich zmazanie nič nepokazí.',
       list: top.map((c) => [c.label, bytes(c.size)]),
-      steps: ['Väčšinu vyčistíš v Nastavenia → Systém → Úložisko → Dočasné súbory.', 'Cache Resolve a Adobe maž radšej v samotnej appke (návod je v Úložisku pri každej položke).'],
-      action: scanCaches ? { label: 'Ukázať', run: () => { setView('storage'); selectTab('cache'); } } : { label: 'Nájsť viac (sken disku)', run: () => setView('storage') } });
+
+      action: scanCaches ? { label: 'Vyčistiť', run: () => { setView('storage'); selectTab('cache'); } } : { label: 'Vyčistiť', run: () => quickClean(caches) } });
   } else ok.push('Cache a dočasné súbory sú v norme');
 
   // 3. Old installers

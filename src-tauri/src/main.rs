@@ -20,6 +20,7 @@ mod hw;
 mod known;
 mod mft;
 mod procs;
+mod regw;
 mod stability;
 mod storage;
 mod system;

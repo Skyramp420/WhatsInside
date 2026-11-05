@@ -504,6 +504,16 @@ mod platform {
                     return Err("Neznáma zmena.".into());
                 }
                 for c in cmds {
+                    // Registry changes go through the API (reg.exe is blocked for some keys).
+                    if c.exe == "reg" {
+                        if let Some(op) = crate::regw::parse(&c.args) {
+                            match crate::regw::run(&op) {
+                                Ok(()) => continue,
+                                Err(_) if c.ignore_err => continue,
+                                Err(e) => return Err(e),
+                            }
+                        }
+                    }
                     let o = std::process::Command::new(c.exe)
                         .args(&c.args)
                         .creation_flags(CREATE_NO_WINDOW)

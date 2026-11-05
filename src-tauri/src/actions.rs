@@ -411,24 +411,10 @@ mod platform {
         }
     }
 
-    pub fn run_elevated(batch: &[Action]) -> Result<Vec<Outcome>, String> {
-        let dir = std::env::temp_dir();
-        let tag = format!("{}-{}", std::process::id(), super::now());
-        let input = dir.join(format!("whatsinside-apply-{tag}.json"));
-        let output = dir.join(format!("whatsinside-result-{tag}.json"));
-        std::fs::write(&input, serde_json::to_vec(batch).map_err(|e| e.to_string())?)
-            .map_err(|e| e.to_string())?;
+    /// Runs this exe again as admin (one UAC prompt) and waits for it.
+    pub fn run_self_elevated(params: &str) -> Result<u32, String> {
         let exe = std::env::current_exe().map_err(|e| e.to_string())?;
-        let params = format!(
-            "--apply \"{}\" \"{}\"",
-            input.to_string_lossy(),
-            output.to_string_lossy()
-        );
-        let (verb, file, params) = (
-            wide("runas"),
-            wide(&exe.to_string_lossy()),
-            wide(&params),
-        );
+        let (verb, file, params) = (wide("runas"), wide(&exe.to_string_lossy()), wide(params));
         unsafe {
             let mut info = SHELLEXECUTEINFOW {
                 cbSize: std::mem::size_of::<SHELLEXECUTEINFOW>() as u32,
@@ -440,13 +426,33 @@ mod platform {
                 ..Default::default()
             };
             if ShellExecuteExW(&mut info).is_err() {
-                let _ = std::fs::remove_file(&input);
                 return Err("Potrebujem povolenie správcu. Okno UAC bolo zrušené.".into());
             }
+            let mut code = 0u32;
             if !info.hProcess.is_invalid() {
                 WaitForSingleObject(info.hProcess, INFINITE);
+                let _ = windows::Win32::System::Threading::GetExitCodeProcess(info.hProcess, &mut code);
                 let _ = CloseHandle(info.hProcess);
             }
+            Ok(code)
+        }
+    }
+
+    pub fn run_elevated(batch: &[Action]) -> Result<Vec<Outcome>, String> {
+        let dir = std::env::temp_dir();
+        let tag = format!("{}-{}", std::process::id(), super::now());
+        let input = dir.join(format!("whatsinside-apply-{tag}.json"));
+        let output = dir.join(format!("whatsinside-result-{tag}.json"));
+        std::fs::write(&input, serde_json::to_vec(batch).map_err(|e| e.to_string())?)
+            .map_err(|e| e.to_string())?;
+        let params = format!(
+            "--apply \"{}\" \"{}\"",
+            input.to_string_lossy(),
+            output.to_string_lossy()
+        );
+        if let Err(e) = run_self_elevated(&params) {
+            let _ = std::fs::remove_file(&input);
+            return Err(e);
         }
         let res = std::fs::read(&output)
             .ok()
@@ -470,7 +476,12 @@ mod platform {
     pub fn run_elevated(_: &[Action]) -> Result<Vec<Outcome>, String> {
         Err("Len na Windows.".into())
     }
+    pub fn run_self_elevated(_: &str) -> Result<u32, String> {
+        Err("Len na Windows.".into())
+    }
 }
+
+pub use platform::{is_admin, run_self_elevated};
 
 #[cfg(test)]
 mod tests {

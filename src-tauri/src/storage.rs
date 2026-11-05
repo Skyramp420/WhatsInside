@@ -183,6 +183,61 @@ fn scan_dir(path: &Path, name: String, ctx: &Ctx) -> ScanDir {
     d
 }
 
+/// Same result as `scan_dir`, built from MFT entries instead of walking
+/// folders. `root` is the record of the scanned folder (5 = drive root).
+fn scan_from_volume(v: &crate::mft::Volume, root: u32, root_path: &str, ctx: &Ctx) -> ScanDir {
+    let n = v.entries.len();
+    let mut kids: Vec<Vec<u32>> = vec![Vec::new(); n];
+    for (i, e) in v.entries.iter().enumerate() {
+        if let Some(e) = e {
+            let p = e.parent as usize;
+            if p < n && p != i && v.entries[p].as_ref().is_some_and(|d| d.dir) {
+                kids[p].push(i as u32);
+            }
+        }
+    }
+    let mut seen = vec![false; n];
+    fn build(v: &crate::mft::Volume, kids: &[Vec<u32>], seen: &mut [bool], id: u32, name: String, path: &str, ctx: &Ctx) -> ScanDir {
+        let mut d = ScanDir { name, size: 0, files: 0, mtime: 0, small_size: 0, small_count: 0, dirs: Vec::new(), big: Vec::new() };
+        seen[id as usize] = true;
+        for &c in &kids[id as usize] {
+            if seen[c as usize] {
+                continue;
+            }
+            let Some(e) = v.entries[c as usize].as_ref() else { continue };
+            if e.dir {
+                let child_path = format!("{path}\\{}", e.name);
+                let sub = build(v, kids, seen, c, e.name.clone(), &child_path, ctx);
+                d.size += sub.size;
+                d.files += sub.files;
+                d.mtime = d.mtime.max(sub.mtime);
+                d.dirs.push(sub);
+            } else {
+                seen[c as usize] = true;
+                if e.cloud {
+                    continue;
+                }
+                d.size += e.size;
+                d.files += 1;
+                d.mtime = d.mtime.max(e.mtime);
+                if e.size >= BIG_FILE {
+                    ctx.offer_top(e.size, Path::new(&format!("{path}\\{}", e.name)));
+                    d.big.push(ScanFile { name: e.name.clone(), size: e.size, mtime: e.mtime });
+                } else {
+                    d.small_size += e.size;
+                    d.small_count += 1;
+                }
+                ctx.progress.files.fetch_add(1, Relaxed);
+                ctx.progress.bytes.fetch_add(e.size, Relaxed);
+            }
+        }
+        ctx.progress.dirs.fetch_add(1, Relaxed);
+        d
+    }
+    let root_path = root_path.trim_end_matches(['\\', '/']);
+    build(v, &kids, &mut seen, root, root_path.to_string(), root_path, ctx)
+}
+
 // ---------------------------------------------------------------- labels
 
 #[derive(Serialize, Clone, Copy, PartialEq, Eq, Debug)]
@@ -905,6 +960,10 @@ pub enum Phase {
 pub struct Status {
     pub phase: Phase,
     pub root: Option<String>,
+    /// "mft" (fast, read the file table) or "walk" (folder by folder).
+    pub method: String,
+    /// Why the fast scan wasn't used, if it was asked for.
+    pub note: Option<String>,
     pub files: u64,
     pub dirs: u64,
     pub bytes: u64,
@@ -915,11 +974,15 @@ pub struct Status {
 
 struct Job {
     root: String,
+    method: Arc<Mutex<(String, Option<String>)>>,
     started: Instant,
     finished: Option<Instant>,
     progress: Arc<Progress>,
     cancel: Arc<AtomicBool>,
 }
+
+/// Returns the drive's MFT entries, or why it couldn't.
+pub type FastSource = Box<dyn FnOnce() -> Result<crate::mft::Volume, String> + Send>;
 
 #[derive(Default)]
 pub struct Scanner {
@@ -929,12 +992,20 @@ pub struct Scanner {
 
 impl Scanner {
     pub fn start(&self, root: String) {
+        self.start_with(root, None);
+    }
+
+    /// `fast` reads the drive's file table instead of walking folders. When
+    /// it fails (UAC declined, not NTFS…) the normal scan runs instead.
+    pub fn start_with(&self, root: String, fast: Option<FastSource>) {
         self.cancel();
         *self.tree.lock().unwrap() = None;
         let progress = Arc::new(Progress::default());
         let cancel = Arc::new(AtomicBool::new(false));
+        let method = Arc::new(Mutex::new((if fast.is_some() { "mft" } else { "walk" }.to_string(), None)));
         *self.job.lock().unwrap() = Some(Job {
             root: root.clone(),
+            method: method.clone(),
             started: Instant::now(),
             finished: None,
             progress: progress.clone(),
@@ -943,7 +1014,14 @@ impl Scanner {
         let tree_slot = self.tree.clone();
         std::thread::spawn(move || {
             let ctx = Ctx::new(progress, cancel.clone());
-            let scanned = scan_dir(Path::new(&root), root.clone(), &ctx);
+            let scanned = match fast.map(|f| f()) {
+                Some(Ok(vol)) => scan_from_volume(&vol, crate::mft::ROOT, &root, &ctx),
+                Some(Err(e)) => {
+                    *method.lock().unwrap() = ("walk".into(), Some(e));
+                    scan_dir(Path::new(&root), root.clone(), &ctx)
+                }
+                None => scan_dir(Path::new(&root), root.clone(), &ctx),
+            };
             if cancel.load(Relaxed) {
                 return;
             }
@@ -973,6 +1051,8 @@ impl Scanner {
             return Status {
                 phase: Phase::Idle,
                 root: None,
+                method: "walk".into(),
+                note: None,
                 files: 0,
                 dirs: 0,
                 bytes: 0,
@@ -987,7 +1067,10 @@ impl Scanner {
         let cancelled = job.cancel.load(Relaxed);
         let end = job.finished.unwrap_or_else(Instant::now);
         let p = &job.progress;
+        let (method, note) = job.method.lock().unwrap().clone();
         Status {
+            method,
+            note,
             phase: if done {
                 Phase::Done
             } else if cancelled {
@@ -1327,6 +1410,34 @@ mod tests {
         })
         .unwrap();
         let _ = fs::remove_dir_all(&base);
+    }
+
+    #[test]
+    fn mft_volume_builds_the_same_tree() {
+        use crate::mft::{Entry, Volume};
+        let e = |parent: u32, name: &str, size: u64, dir: bool| Some(Entry { parent, name: name.into(), size, mtime: 19000, dir, cloud: false });
+        let mut entries = vec![None; 30];
+        entries[5] = e(5, ".", 0, true);
+        entries[16] = e(5, "SteamLibrary", 0, true);
+        entries[17] = e(16, "steamapps", 0, true);
+        entries[18] = e(17, "common", 0, true);
+        entries[19] = e(18, "Hollow Knight", 0, true);
+        entries[20] = e(19, "data.bin", 2 << 20, false);
+        entries[21] = e(5, "small.txt", 10, false);
+        entries[22] = Some(Entry { parent: 5, name: "cloud.mp4".into(), size: 0, mtime: 0, dir: false, cloud: true });
+        entries[23] = e(99, "orphan", 5, false); // parent outside the volume
+        let v = Volume { entries };
+        let ctx = Ctx::new(Arc::new(Progress::default()), Arc::new(AtomicBool::new(false)));
+        let d = scan_from_volume(&v, 5, "C:\\", &ctx);
+        assert_eq!(d.size, (2 << 20) + 10);
+        assert_eq!(d.files, 2);
+        assert_eq!(d.small_count, 1);
+        let t = Tree::build(d, "C:\\", Vec::new(), 19500);
+        let o = t.owners();
+        assert_eq!(o.games[0].label, "Hollow Knight");
+        assert_eq!(o.games[0].size, 2 << 20);
+        let top = ctx.top.into_inner().unwrap();
+        assert_eq!(top.len(), 1);
     }
 
     #[test]

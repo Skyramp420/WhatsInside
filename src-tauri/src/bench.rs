@@ -481,7 +481,7 @@ mod tests {
 
     #[test]
     fn handles_v1_columns_and_caps() {
-        let text = "Application,ProcessID,SwapChainAddress,MsBetweenPresents\ngame.exe,1,0x1,16.6\n".repeat(1);
+        let text = "Application,ProcessID,SwapChainAddress,MsBetweenPresents\ngame.exe,1,0x1,16.6\n".to_string();
         let mut t = text.clone();
         for _ in 0..50 {
             t.push_str("game.exe,1,0x1,16.6\n");

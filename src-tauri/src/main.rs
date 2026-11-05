@@ -17,6 +17,7 @@ mod games;
 mod gpu;
 mod hw;
 mod known;
+mod mft;
 mod procs;
 mod storage;
 mod system;
@@ -143,12 +144,56 @@ async fn storage_drives() -> Vec<storage::Drive> {
 }
 
 #[tauri::command]
-async fn storage_start(state: State<'_, AppState>, root: String) -> Result<(), String> {
+async fn storage_start(
+    state: State<'_, AppState>,
+    root: String,
+    fast: Option<bool>,
+) -> Result<(), String> {
     if !std::path::Path::new(&root).is_dir() {
         return Err("Tento priečinok neexistuje.".into());
     }
-    state.scanner.start(root);
+    let letter = drive_letter(&root);
+    match (fast.unwrap_or(false), letter) {
+        (true, Some(l)) => state.scanner.start_with(root, Some(Box::new(move || fast_scan(l)))),
+        _ => state.scanner.start(root),
+    }
     Ok(())
+}
+
+/// "C:\\" → 'C'. Only whole drives can be read through the MFT.
+fn drive_letter(root: &str) -> Option<char> {
+    let r = root.trim_end_matches(['\\', '/']);
+    let mut c = r.chars();
+    match (c.next(), c.next(), c.next()) {
+        (Some(l), Some(':'), None) if l.is_ascii_alphabetic() => Some(l.to_ascii_uppercase()),
+        _ => None,
+    }
+}
+
+/// Reads a drive's MFT: directly when we're admin, otherwise through an
+/// elevated copy of ourselves (one UAC prompt).
+fn fast_scan(letter: char) -> Result<mft::Volume, String> {
+    if actions::is_admin() {
+        return read_mft(letter);
+    }
+    let out = std::env::temp_dir().join(format!("whatsinside-mft-{}-{}.bin", std::process::id(), letter));
+    let code = actions::run_self_elevated(&format!("--mft {letter} \"{}\"", out.to_string_lossy()))?;
+    let bytes = std::fs::read(&out);
+    let err = std::fs::read_to_string(out.with_extension("err")).ok();
+    let _ = std::fs::remove_file(&out);
+    let _ = std::fs::remove_file(out.with_extension("err"));
+    if code != 0 {
+        return Err(err.unwrap_or_else(|| format!("Rýchly scan skončil s chybou {code}.")));
+    }
+    mft::read_file(&bytes.map_err(|e| e.to_string())?)
+}
+
+fn read_mft(letter: char) -> Result<mft::Volume, String> {
+    let mut dev = std::fs::File::open(format!("\\\\.\\{letter}:"))
+        .map_err(|e| format!("Disk sa nedá otvoriť: {e}"))?;
+    // Raw volume reads must stay sector-aligned, so no BufReader here:
+    // every read below is a whole sector, record or cluster run.
+    mft::read_volume(&mut dev, &|_| {})
 }
 
 #[tauri::command]
@@ -298,6 +343,28 @@ fn reveal(_path: &str) -> Result<(), String> {
 fn main() {
     // Elevated helper mode: run a batch of changes after the UAC prompt, then quit.
     let args: Vec<String> = std::env::args().collect();
+    if let Some(i) = args.iter().position(|a| a == "--mft") {
+        // Elevated helper: read the drive's MFT into a compact file.
+        let (Some(l), Some(out)) = (args.get(i + 1).and_then(|s| s.chars().next()), args.get(i + 2)) else {
+            std::process::exit(2);
+        };
+        let out = std::path::PathBuf::from(out);
+        match read_mft(l.to_ascii_uppercase()) {
+            Ok(v) => {
+                let ok = std::fs::File::create(&out)
+                    .map(std::io::BufWriter::new)
+                    .and_then(|mut w| {
+                        mft::write_volume(&v, &mut w)?;
+                        std::io::Write::flush(&mut w)
+                    });
+                std::process::exit(if ok.is_ok() { 0 } else { 3 });
+            }
+            Err(e) => {
+                let _ = std::fs::write(out.with_extension("err"), e);
+                std::process::exit(1);
+            }
+        }
+    }
     if let Some(i) = args.iter().position(|a| a == "--apply") {
         if let (Some(input), Some(output)) = (args.get(i + 1), args.get(i + 2)) {
             actions::run_batch(input, output);
@@ -344,4 +411,14 @@ fn main() {
         ])
         .run(tauri::generate_context!())
         .expect("WhatsInside sa nepodarilo spustiť");
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn only_whole_drives_go_fast() {
+        assert_eq!(super::drive_letter("C:\\"), Some('C'));
+        assert_eq!(super::drive_letter("d:"), Some('D'));
+        assert_eq!(super::drive_letter("C:\\Users"), None);
+    }
 }

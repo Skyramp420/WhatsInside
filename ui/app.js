@@ -851,7 +851,7 @@ async function pollProcs() {
   clearTimeout(pr.timer);
   try { pr.snap = await invoke('procs_snapshot'); } catch (e) { console.error(e); }
   renderProcs();
-  if (current === 'procs' && !document.hidden) pr.timer = setTimeout(pollProcs, 2000);
+  if (current === 'procs' && !document.hidden && !idle.running) pr.timer = setTimeout(pollProcs, 2000);
 }
 
 function renderProcs() {
@@ -935,6 +935,7 @@ function killProcs(list, name) {
   };
 }
 
+$('#idleBtn').onclick = idleCheck;
 views.procs = {
   enter(filter) {
     if (filter) pr.filter = filter;
@@ -1832,6 +1833,7 @@ const sb = { report: null, disks: null, deep: null, deepBusy: false };
 const fmtDate = (unix) => new Date(unix * 1000).toLocaleString('sk-SK', { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' });
 
 async function loadStability() {
+  if (!startupItems) invoke('autostart_list').then((x) => { startupItems = x; }).catch(() => {});
   if (!sb.report) $('#stabBody').innerHTML = scanCard('Čítam denník Windowsu', 'Pády, modré obrazovky, hardvérové chyby a disky za posledných 30 dní.', ['Systémový denník', 'Pády appiek', 'Disky']);
   const cl = checklist($('#stabBody'));
   const r = invoke('stability_report').then((x) => { cl.tick(0); cl.tick(1); return x; });
@@ -1910,6 +1912,32 @@ function bootChart(boots) {
     ${latest.post > 30000 ? '<p class="why">Po prihlásení to trvá dlho. To sú appky, ktoré sa spúšťajú s Windowsom.</p><button class="btn small" id="toStartup">Pozrieť, čo sa spúšťa</button>' : ''}`;
 }
 
+/** Apps, services and drivers that delayed boots, as Windows logged them. */
+function slowList(slow) {
+  if (!slow.length) return '';
+  const by = new Map();
+  for (const x of slow) {
+    if (!x.name) continue;
+    const k = `${x.kind}:${x.name.toLowerCase()}`;
+    const a = by.get(k) || { ...x, n: 0, sum: 0, max: 0 };
+    a.n++; a.sum += x.extra; a.max = Math.max(a.max, x.extra);
+    by.set(k, a);
+  }
+  const list = [...by.values()].map((a) => ({ ...a, avg: a.sum / a.n })).filter((a) => a.avg >= 300).sort((a, b) => b.avg * b.n - a.avg * a.n).slice(0, 10);
+  if (!list.length) return '';
+  const kind = { app: ['Appka', 'app'], service: ['Služba', 'gear'], driver: ['Ovládač', 'cpu'], device: ['Zariadenie', 'usb'], other: ['Systém', 'win'] };
+  const auto = (name) => (startupItems || []).find((i) => i.enabled && (i.app || i.name).toLowerCase().includes(name.toLowerCase().replace(/\.exe$/, '')));
+  return `<h3 class="cat">${ICON.clock}Čo zdržiava štart</h3><div class="card list">${list.map((a) => {
+    const [label, ic] = kind[a.kind] || kind.other;
+    const au = a.kind === 'app' || a.kind === 'service' ? auto(a.name) : null;
+    return `<div class="arow withicon"><span class="ricon s-${a.avg > 3000 ? 'amber' : 'off'}">${ICON[ic]}</span>
+      <div style="min-width:0"><div class="t">${esc(a.name)}<span class="badge maybe">${label}</span></div>
+      <div class="a">Zdržala štart o ${sk(a.avg / 1000, 1)} s${a.n > 1 ? ` (${a.n}× za 60 dní, najviac ${sk(a.max / 1000, 1)} s)` : ''}</div></div>
+      ${au ? `<button class="btn small toauto2" data-q="${esc(au.app || au.name)}">Vypnúť zo spúšťania…</button>` : '<span></span>'}</div>`;
+  }).join('')}</div>
+  <div class="note">Windows si pri každom štarte zapisuje, čo ho zdržalo dlhšie, než je obvyklé. Pri ovládačoch a službách Windowsu pomôže skôr aktualizácia ako vypnutie.</div>`;
+}
+
 function renderStability() {
   const r = sb.report;
   const tips = stabilityTips(r);
@@ -1948,10 +1976,11 @@ function renderStability() {
     ${(sb.disks || []).some((d) => d.system && d.media === 'HDD') ? `<div class="card tipcard lvl-high" style="margin-top:12px"><div class="ti">${ICON.drive}</div><div class="tb"><div class="tt"><span>Windows beží z klasického pevného disku</span></div><div class="tx">Toto je najväčšia brzda, akú PC môže mať. Aj lacný SSD zrýchli štart, appky aj hry niekoľkonásobne. Žiadna optimalizácia Windowsu sa tomu nevyrovná.</div></div></div>` : ''}
     ${(sb.deep?.disks || []).some((x) => x.wear != null && x.wear >= 80) ? `<div class="card tipcard lvl-high" style="margin-top:12px"><div class="ti">${ICON.warn}</div><div class="tb"><div class="tt"><span>SSD je takmer opotrebovaný</span></div><div class="tx">Pri opotrebení nad 80 % sa blíži koniec jeho garantovanej životnosti. Zálohuj si dáta a plánuj výmenu.</div></div></div>` : ''}
 
-    ${sb.deep ? `<h2>Ako dlho štartuje PC</h2><div class="card boot">${bootChart(sb.deep.boots)}</div>` : ''}
+    ${sb.deep ? `<h2>Ako dlho štartuje PC</h2><div class="card boot">${bootChart(sb.deep.boots)}</div>${slowList(sb.deep.slow || [])}` : ''}
   `;
   $$('#stabBody [data-a]').forEach((b) => (b.onclick = () => actions[+b.dataset.a]?.()));
   $('#deepGo').onclick = runDeep;
+  $$('#stabBody .toauto2').forEach((b) => (b.onclick = () => { su.q = b.dataset.q.toLowerCase(); su.kind = 'all'; $('#startupSearch').value = b.dataset.q; setView('startup'); }));
   if ($('#toStartup')) $('#toStartup').onclick = () => setView('startup');
   bindTips($('#stabBody'));
 }
@@ -1995,6 +2024,189 @@ async function restoreCard() {
   };
   if ($('#rpNow')) $('#rpNow').onclick = () => run('restore_point', 'Bod obnovenia vytvorený.');
   if ($('#rpEnable')) $('#rpEnable').onclick = () => run('enable_protection', 'Ochrana systému zapnutá.');
+}
+
+/* ========================================================== TUNING (OC assistant) */
+// WhatsInside never sets clocks or voltages itself. It says what to change
+// where, then checks the result: FPS before/after, temperatures, and
+// whether WHEA errors, blue screens or driver resets showed up since.
+const tn = { report: null };
+
+function cpuInfo(name = '') {
+  const n = name.replace(/\((R|TM)\)/gi, '');
+  const intel = /intel/i.test(n), amd = /amd|ryzen/i.test(n);
+  const igen = /i[3579]-(\d{2})\d{2,3}([A-Z]*)/i.exec(n);
+  const ultra = /core\s*ultra\s*\d\s*(\d)\d{2}([A-Z]*)/i.exec(n);
+  const rz = /ryzen\s*\d\s*(\d)(\d{3})(X3D|X|G|GE)?/i.exec(n);
+  return {
+    name: n.replace(/\s+/g, ' ').trim(), intel, amd,
+    intelGen: igen ? +igen[1] : 0, k: /\d{4,5}K/i.test(n),
+    ultra: ultra ? +ultra[1] : 0,
+    zen: rz ? { 1: 1, 2: 1.5, 3: 2, 4: 2, 5: 3, 7: 4, 8: 4, 9: 5 }[rz[1]] || 0 : 0,
+    x3d: rz && /x3d/i.test(rz[3] || ''), series: rz ? +rz[1] * 1000 : 0,
+  };
+}
+
+function tuneSteps() {
+  const cpu = cpuInfo(specs?.cpu);
+  const gpu = gpuCaps();
+  const mods = specs?.ram_modules || [];
+  const xmpOff = mods.some((m) => m.rated_speed && m.configured_speed && m.configured_speed < m.rated_speed - 150);
+  const out = [];
+
+  // RAM first: the safest real gain.
+  out.push({ level: xmpOff ? 'high' : 'low', icon: 'ram', title: xmpOff ? 'Pamäť: zapni XMP/EXPO' : 'Pamäť beží na rýchlosti, na akú je predávaná',
+    text: xmpOff ? `Moduly vedia ${sk(mods[0].rated_speed)} MT/s, bežia na ${sk(mods[0].configured_speed)} MT/s. Profil je overený výrobcom pamäte, je to najbezpečnejší zisk výkonu.`
+      : (cpu.zen && cpu.zen <= 1.5 ? 'Na Ryzen 1000/2000 sa oplatí aj ladenie časovaní (Ryzen DRAM Calculator), procesor je na pamäť veľmi citlivý. To je ale pokročilé.' : 'Ďalšie ladenie časovaní pamäte dá pár percent a je časovo náročné. Neodporúčam, ak nemáš chuť testovať hodiny.'),
+    steps: xmpOff ? ['V BIOSe zapni XMP (Intel) alebo EXPO/DOCP (AMD).', 'Po uložení sa prvý štart môže predĺžiť, to je normálne.'] : null });
+
+  // CPU
+  if (cpu.intel && cpu.intelGen >= 13 && cpu.intelGen <= 14) {
+    out.push({ level: 'high', icon: 'cpu', title: 'Procesor: nepretaktovať, radšej poistiť',
+      text: `${cpu.name} patrí do 13. a 14. generácie, ktorá sa pri vysokom napätí poškodzuje (problém „Vmin shift“). Intel to opravil mikrokódom v BIOSe. Pretaktovanie tu neodporúčam, mierny undervolt áno: nižšie teploty a menšie opotrebenie.`,
+      steps: ['Aktualizuj BIOS dosky na najnovšiu verziu (obsahuje opravu mikrokódu).', 'V BIOSe vyber profil „Intel Default Settings“ (pri K procesoroch „Performance“).',
+        'Voliteľne undervolt: znížiť AC Load Line (MSI: „CPU Lite Load“, ASUS: „AC Load Line“). Po každom kroku over stabilitu nižšie.'] });
+  } else if (cpu.intel && cpu.ultra === 2) {
+    out.push({ level: 'mid', icon: 'cpu', title: 'Procesor: profil Intel 200S Boost',
+      text: 'Pre Core Ultra 200S má Intel oficiálny profil pretaktovania, ktorý nezruší záruku. Zrýchli hlavne pamäť a prepojenie v procesore.',
+      steps: ['V BIOSe zapni „Intel 200S Boost“ (podľa výrobcu dosky môže byť v sekcii OC alebo Ai Tweaker).', 'Zapni XMP pre pamäť.'] });
+  } else if (cpu.intel && cpu.k) {
+    out.push({ level: 'low', icon: 'cpu', title: 'Procesor: pretaktovanie cez násobič',
+      text: `${cpu.name} má odomknutý násobič. Zisk v hrách býva 3–8 %, za cenu vyšších teplôt. Rozumnejší je undervolt.`,
+      steps: ['V BIOSe zvýš násobič všetkých jadier o 1 (100 MHz) a over stabilitu.', 'Sleduj teploty pod záťažou, drž ich pod 90 °C.'] });
+  } else if (cpu.amd && cpu.zen >= 3) {
+    out.push({ level: 'mid', icon: 'cpu', title: 'Procesor: PBO a Curve Optimizer',
+      text: `${cpu.name} si takt riadi sám. Záporný Curve Optimizer mu dá nižšie napätie, takže bežne vyšší takt pri nižšej teplote. Typicky +2–5 % a o pár stupňov chladnejšie.` +
+        (cpu.x3d && cpu.zen === 3 ? ' Pri 5800X3D BIOS Curve Optimizer väčšinou neponúka, použi nástroj PBO2 Tuner.' : ''),
+      steps: ['BIOS → AMD Overclocking → Precision Boost Overdrive → Advanced.', 'Curve Optimizer → All Cores → Negative → začni s 10.', 'Over stabilitu nižšie, ak je stabilné, skús 15 až 20. Pri pádoch alebo WHEA chybách uber o 5.'] });
+  } else if (cpu.amd && cpu.zen) {
+    out.push({ level: 'low', icon: 'cpu', title: 'Procesor: zisk je hlavne v pamäti',
+      text: `Pri ${cpu.name} dá pretaktovanie procesora málo. Rýchlejšia RAM v dvoch kanáloch a jej časovania pomôžu viac.`, steps: null });
+  }
+
+  // GPU
+  if (gpu.nvidia) {
+    const v = gpu.fg ? '0,950 V' : gpu.rtx ? '0,900 V' : '0,875 V';
+    out.push({ level: 'mid', icon: 'gpu', title: 'Grafika: undervolt v MSI Afterburner',
+      text: `Rovnaký alebo o trochu vyšší výkon pri nižšej spotrebe: ${gpu.name ? gpu.name.replace(/NVIDIA |GeForce /g, '') : 'karta'} býva o 50–100 W úspornejšia, chladnejšia a tichšia. Pretaktovanie navyše dá zvyčajne len 3–6 %.`,
+      steps: ['Nainštaluj MSI Afterburner a otvor krivku napätia (Ctrl + F).', 'V záložke Hry pozri, na akom takte grafika beží počas hry (Grafika naživo).',
+        `Nájdi bod okolo ${v} a vytiahni ho na tento takt. Všetky body vpravo od neho daj nižšie, aby krivka za ním bola rovná.`,
+        'Apply, potom zmeraj FPS a hraj. Pri pádoch alebo resetoch ovládača pridaj 0,025 V.', 'Afterburner sa musí spúšťať so systémom, inak sa nastavenie po reštarte stratí.'] });
+  } else if (gpu.amd) {
+    out.push({ level: 'mid', icon: 'gpu', title: 'Grafika: undervolt v AMD Adrenalin',
+      text: 'Nižšie napätie = nižšie teploty a vyšší takt, ktorý karta udrží. Adrenalin to vie sám, bez ďalších programov.',
+      steps: ['AMD Software → Výkon → Ladenie → Undervolt GPU (predvoľba), alebo ručne zníž max. napätie o 50 mV.', 'Zmeraj FPS a hraj. Pri pádoch vráť o 25 mV späť.'] });
+  }
+  return out;
+}
+
+function tuneSession() {
+  try { return JSON.parse(localStorageGet('tuneSession') || 'null'); } catch { return null; }
+}
+
+function tuneCheck(sess) {
+  const r = sb.report;
+  if (!sess || !r) return null;
+  const t0 = sess.at;
+  const after = (arr) => (arr || []).filter((t) => t >= t0).length;
+  const bs = (r.blue_screens || []).filter((b) => b.time >= t0).length;
+  const whea = after(r.whea_times), tdr = after(r.gpu_resets), off = after(r.sudden_offs);
+  const crashes = (r.apps || []).filter((a) => a.last >= t0 && a.hint && /grafiky|DirectX/.test(a.hint)).length;
+  const days = Math.max(0, (Date.now() / 1000 - t0) / 86400);
+  const runs = gm.runs || [];
+  const before = [...runs].reverse().find((x) => x.id / 1000 < t0);
+  const afterRun = before ? [...runs].reverse().find((x) => x.id / 1000 >= t0 && x.exe === before.exe) : null;
+  return { bs, whea, tdr, off, crashes, days, before, afterRun, bad: bs + whea + tdr + crashes > 0 };
+}
+
+async function loadTune() {
+  if (!specs) specs = await invoke('pc_specs').catch(() => null);
+  if (!sb.report) sb.report = await invoke('stability_report').catch(() => null);
+  gm.runs = await invoke('bench_list').catch(() => gm.runs || []);
+  renderTune();
+}
+
+function renderTune() {
+  const cpu = cpuInfo(specs?.cpu), gpu = gpuCaps();
+  const sess = tuneSession();
+  const c = tuneCheck(sess);
+  const actions = [];
+  const steps = tuneSteps();
+  const delta = (a, b) => (b ? `${a >= b ? '+' : ''}${sk(((a - b) / b) * 100, 1)} %` : '');
+  $('#tuneBody').innerHTML = `
+    <div class="card info"><svg viewBox="0 0 16 16"><path d="M8 1.6l5 2v4c0 3.2-2.1 5.7-5 6.8-2.9-1.1-5-3.6-5-6.8v-4z"/></svg>
+      <p><b>Takty ani napätia za teba nemením.</b> To patrí do BIOSu a do nástrojov výrobcu. Poviem ti, čo a kde nastaviť pre tvoje komponenty, a potom overím, či je to stabilné a či to niečo prinieslo.</p></div>
+    <div class="chips2 build">${cpu.name ? `<span class="badge maybe">${ICON.cpu}${esc(cpu.name)}</span>` : ''}${gpu.name ? `<span class="badge maybe">${ICON.gpu}${esc(gpu.name)}</span>` : ''}${(specs?.ram_modules || []).length ? `<span class="badge maybe">${ICON.ram}${sk(specs.ram_modules.reduce((a, m) => a + m.size_mb, 0) / 1024)} GB ${esc(specs.ram_modules[0].kind || '')} ${sk(specs.ram_modules[0].configured_speed || 0)} MT/s</span>` : ''}</div>
+
+    <h2>Kontrola stability</h2>
+    ${sess ? `<div class="card tunesess ${c?.bad ? 'bad' : 'good'}">
+        <div class="ts-head"><span class="ricon s-${c?.bad ? 'rec' : 'mint'}">${c?.bad ? ICON.warn : ICON.check}</span>
+          <div><b>${c?.bad ? 'Od začiatku ladenia sa objavili chyby' : c && c.days >= 2 ? `Stabilné ${sk(c.days, 0)} dní` : 'Zatiaľ bez chýb'}</b>
+          <span>Ladíš od ${fmtDate(sess.at)}${sess.note ? ` · ${esc(sess.note)}` : ''}</span></div>
+          <button class="btn small" id="tuneEnd">Ukončiť ladenie</button></div>
+        <div class="ts-grid">
+          <div><span class="k">Modré obrazovky</span><span class="v num ${c?.bs ? 'bad' : ''}">${c?.bs ?? 0}</span></div>
+          <div><span class="k">Hardvérové chyby</span><span class="v num ${c?.whea ? 'bad' : ''}">${c?.whea ?? 0}</span></div>
+          <div><span class="k">Resety grafiky</span><span class="v num ${c?.tdr ? 'bad' : ''}">${c?.tdr ?? 0}</span></div>
+          <div><span class="k">Pády hier v ovládači</span><span class="v num ${c?.crashes ? 'bad' : ''}">${c?.crashes ?? 0}</span></div>
+        </div>
+        ${c?.bad ? '<p class="why warn">Posledný krok je nestabilný. Vráť ho o stupeň späť (napätie vyššie, Curve Optimizer bližšie k nule, menej MHz) a skontroluj znova.</p>'
+          : c && c.days < 2 ? '<p class="why">Hraj bežne aspoň 2–3 dni alebo pusti náročnú hru na pol hodinu. Nestabilita sa často ukáže až pri rôznej záťaži.</p>' : '<p class="why">Bez modrých obrazoviek, hardvérových chýb a resetov grafiky. Toto nastavenie vyzerá stabilne.</p>'}
+        ${c?.before ? `<div class="ts-fps">${ICON.game}<span>${esc(c.before.exe)}: pred ${sk(c.before.avg_fps, 0)} FPS${c.afterRun ? ` → po ${sk(c.afterRun.avg_fps, 0)} FPS <b class="${c.afterRun.avg_fps >= c.before.avg_fps ? 'up' : 'down'}">${delta(c.afterRun.avg_fps, c.before.avg_fps)}</b>${c.afterRun.gpu && c.before.gpu ? ` · grafika max ${sk(c.before.gpu.temp_max, 0)} → ${sk(c.afterRun.gpu.temp_max, 0)} °C` : ''}` : ' · zmeraj tú istú hru znova v záložke Hry'}</span></div>`
+          : '<div class="ts-fps">' + ICON.game + '<span>Pred ladením nemáš meranie FPS. Nabudúce najprv zmeraj hru, potom začni ladiť.</span></div>'}
+        <div class="mact"><button class="btn small" id="tuneRefresh">${ICON.restart}Skontrolovať teraz</button><button class="btn small" id="tuneFps">${ICON.game}Zmerať FPS</button></div>
+      </div>`
+      : `<div class="card tunestart"><div><b>Pred zmenou v BIOSe alebo v Afterburneri klikni na Začínam ladiť.</b>
+        <span>Odvtedy budem sledovať modré obrazovky, hardvérové chyby (WHEA), resety grafiky a pády hier. Ideálne si predtým zmeraj FPS v jednej hre, porovnám ho potom.</span></div>
+        <div class="ts-act"><input id="tuneNote" placeholder="Čo meníš, napr. CO -15" maxlength="60"><button class="btn primary" id="tuneGo">Začínam ladiť</button></div></div>`}
+
+    <h2>Čo nastaviť</h2>
+    ${tipCards(steps, actions)}
+    <div class="note">Nič z toho nie je nutné. Najväčší rozdiel urobí XMP/EXPO, undervolt grafiky je hlavne o teplotách a hluku. Pri pretaktovaní vždy meň jednu vec naraz a over ju.</div>`;
+  $$('#tuneBody [data-a]').forEach((b) => (b.onclick = () => actions[+b.dataset.a]?.()));
+  if ($('#tuneGo')) $('#tuneGo').onclick = () => { localStorageSet('tuneSession', JSON.stringify({ at: Math.floor(Date.now() / 1000), note: $('#tuneNote').value.trim() })); renderTune(); toast('Sledujem stabilitu od teraz.'); };
+  if ($('#tuneEnd')) $('#tuneEnd').onclick = () => { localStorageSet('tuneSession', 'null'); renderTune(); };
+  if ($('#tuneRefresh')) $('#tuneRefresh').onclick = async () => { sb.report = await invoke('stability_report').catch(() => sb.report); renderTune(); toast('Skontrolované'); };
+  if ($('#tuneFps')) $('#tuneFps').onclick = () => setView('games');
+}
+
+$('#tuneReload').onclick = () => { sb.report = null; loadTune(); };
+views.tune = { enter() { loadTune(); } };
+
+/* ---------------------------------------------------------- idle CPU check */
+const idle = { running: false };
+async function idleCheck() {
+  if (idle.running) return;
+  idle.running = true;
+  clearTimeout(pr.timer);
+  const box = $('#idleBox');
+  const N = 15, acc = new Map();
+  let total = 0;
+  const show = (k) => { box.innerHTML = `<div class="card idlecard"><div class="ih"><span class="dot amber pulse"></span><div><b>Nesiahaj na PC, meriam ${N * 2 - k * 2} s</b><span>Sledujem, čo pracuje, keď nič nerobíš.</span></div></div><div class="bar"><i style="width:${(k / N) * 100}%"></i></div></div>`; };
+  show(0);
+  await invoke('procs_snapshot');
+  for (let k = 1; k <= N; k++) {
+    await new Promise((r) => setTimeout(r, 2000));
+    const s = await invoke('procs_snapshot').catch(() => null);
+    if (!s) continue;
+    total += s.cpu_total;
+    for (const g of s.groups) {
+      const a = acc.get(g.key) || { g, cpu: 0, io: 0 };
+      a.cpu += g.cpu; a.io += g.io_bps; a.g = g;
+      acc.set(g.key, a);
+    }
+    show(k);
+  }
+  const avg = total / N;
+  const list = [...acc.values()].map((a) => ({ ...a, cpu: a.cpu / N, io: a.io / N })).filter((a) => a.cpu >= 0.3 || a.io > 512 * 1024).sort((a, b) => b.cpu - a.cpu).slice(0, 10);
+  box.innerHTML = `<div class="card idlecard"><div class="ih"><span class="ricon s-${avg > 8 ? 'amber' : 'mint'}">${avg > 8 ? ICON.warn : ICON.check}</span><div>
+      <b>V pokoji procesor pracuje na ${sk(avg, 1)} %</b><span>${avg > 8 ? 'To je viac, než by malo byť. Nižšie je, kto za to môže.' : avg > 3 ? 'V norme, pár vecí ale pracuje stále.' : 'Výborné, na pozadí skoro nič nebeží.'}</span></div>
+      <button class="btn icon ghost" id="idleClose" title="Zavrieť">${ICON.x}</button></div>
+    ${list.length ? `<div class="ilist">${list.map((a) => { const au = autoOf(a.g); return `<div class="irow"><span class="gicon v-${a.g.verdict}">${ICON[procIcon(a.g)]}</span><span class="in"><b>${esc(a.g.name)}</b>${badge(a.g.verdict)}${au ? '<span class="badge auto">So systémom</span>' : ''}</span><span class="num">${sk(a.cpu, 1)} %</span><span class="num dim">${rate(a.io)}</span></div>`; }).join('')}</div>` : ''}
+    <p class="why">${list.some((a) => a.g.key === 'windows') ? 'Windows občas indexuje, aktualizuje alebo kontroluje Defenderom, to je v poriadku. ' : ''}Appky, ktoré pracujú stále a nepotrebuješ ich, zavri alebo vypni v Po spustení.</p></div>`;
+  $('#idleClose').onclick = () => (box.innerHTML = '');
+  idle.running = false;
+  pollProcs();
 }
 
 /* ========================================================== HISTORY */

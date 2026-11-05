@@ -177,6 +177,8 @@ pub struct Report {
     pub sudden_offs: Vec<i64>,
     pub whea_fatal: u32,
     pub whea_corrected: u32,
+    /// When hardware errors happened, so tuning can be checked against them.
+    pub whea_times: Vec<i64>,
     /// Graphics driver stopped responding and recovered (event 4101).
     pub gpu_resets: Vec<i64>,
     pub gpu_driver: Option<String>,
@@ -208,8 +210,14 @@ pub fn analyze(system: &[Event], apps: &[Event], days: u32) -> Report {
                     r.sudden_offs.push(e.time);
                 }
             }
-            18 if p.contains("whea") => r.whea_fatal += 1,
-            17 | 19 | 47 if p.contains("whea") => r.whea_corrected += 1,
+            18 if p.contains("whea") => {
+                r.whea_fatal += 1;
+                r.whea_times.push(e.time);
+            }
+            17 | 19 | 47 if p.contains("whea") => {
+                r.whea_corrected += 1;
+                r.whea_times.push(e.time);
+            }
             4101 if p == "display" => {
                 r.gpu_resets.push(e.time);
                 if let Some(d) = e.get("", 0) {

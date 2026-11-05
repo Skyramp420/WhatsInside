@@ -253,7 +253,7 @@
         ];
         case 'appx_list': return mockApps;
         case 'stability_report': return {
-          days: 30, read_ok: true, whea_fatal: 2, whea_corrected: 7, disk_errors: 0, disk_resets: 0, gpu_driver: 'nvlddmkm',
+          days: 30, read_ok: true, whea_fatal: 2, whea_corrected: 7, whea_times: [Date.now() / 1000 - 3 * 86400, Date.now() / 1000 - 9 * 86400], disk_errors: 0, disk_resets: 0, gpu_driver: 'nvlddmkm',
           blue_screens: [{ time: Date.now() / 1000 - 3 * 86400, code: '0x00000124', name: 'WHEA_UNCORRECTABLE_ERROR', meaning: 'Hardvérová chyba, ktorú nebolo možné opraviť. Najčastejšie procesor: pretaktovanie, napätie alebo starý BIOS.' },
             { time: Date.now() / 1000 - 9 * 86400, code: '0x00000124', name: 'WHEA_UNCORRECTABLE_ERROR', meaning: '' }],
           sudden_offs: [Date.now() / 1000 - 12 * 86400], gpu_resets: [Date.now() / 1000 - 2 * 86400],
@@ -268,6 +268,8 @@
           disks: [{ id: '0', wear: 3, temp: 41, temp_max: 68, hours: 5120, read_err: 0, write_err: 0, read_unc: 0, write_unc: 0 }, { id: '1', wear: 1, temp: 38, temp_max: 55, hours: 2100 }],
           boots: Array.from({ length: 14 }, (_, i) => ({ at: new Date(Date.now() - (14 - i) * 2 * 864e5).toISOString(), boot: 18000 + i * 2500, main: 11000 + i * 200, post: 7000 + i * 2300 })),
           restore: [{ at: new Date(Date.now() - 6 * 864e5).toISOString(), desc: 'Windows Update' }],
+          slow: [{ at: '2026-11-01T08:00:00Z', kind: 'app', name: 'Discord', total: 6200, extra: 4200 }, { at: '2026-11-03T08:00:00Z', kind: 'app', name: 'Discord', total: 7000, extra: 5100 },
+            { at: '2026-11-02T08:00:00Z', kind: 'service', name: 'MSI Central Service', total: 9000, extra: 6800 }, { at: '2026-11-02T08:00:00Z', kind: 'driver', name: 'Realtek Audio', total: 2100, extra: 900 }],
         };
         case 'restore_status': return { protection: true, last: mockRestore, error: null };
         case 'storage_growth': return { since: Date.now() / 1000 - 21 * 86400, total_before: 701 * GB, total_after: 743 * GB, items: [

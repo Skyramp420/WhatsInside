@@ -53,6 +53,18 @@ pub struct Boot {
     pub post: u64,
 }
 
+/// Something that made a boot slower, as Windows logs it (events 101–109).
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
+pub struct SlowStart {
+    pub at: String,
+    /// "app", "driver", "service", "device", "other"
+    pub kind: String,
+    pub name: String,
+    /// How long it took in total and how much longer than usual (ms).
+    pub total: u64,
+    pub extra: u64,
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
 pub struct RestorePoint {
     pub at: String,
@@ -67,6 +79,8 @@ pub struct Deep {
     pub boots: Vec<Boot>,
     #[serde(default)]
     pub restore: Vec<RestorePoint>,
+    #[serde(default)]
+    pub slow: Vec<SlowStart>,
 }
 
 /// PowerShell's ConvertTo-Json writes a single object instead of a list of
@@ -89,6 +103,7 @@ pub fn parse_deep(json: &str) -> Option<Deep> {
         disks: list(v.get("disks").unwrap_or(&serde_json::Value::Null)),
         boots: list(v.get("boots").unwrap_or(&serde_json::Value::Null)),
         restore: list(v.get("restore").unwrap_or(&serde_json::Value::Null)),
+        slow: list(v.get("slow").unwrap_or(&serde_json::Value::Null)),
     })
 }
 
@@ -99,7 +114,9 @@ pub const DEEP_PS: &str = r#"$ErrorActionPreference='SilentlyContinue'
 $d=@(Get-PhysicalDisk | ForEach-Object { $r=$_ | Get-StorageReliabilityCounter; [pscustomobject]@{ id=[string]$_.DeviceId; wear=$r.Wear; temp=$r.Temperature; temp_max=$r.TemperatureMax; hours=$r.PowerOnHours; read_err=$r.ReadErrorsTotal; write_err=$r.WriteErrorsTotal; read_unc=$r.ReadErrorsUncorrected; write_unc=$r.WriteErrorsUncorrected } })
 $b=@(Get-WinEvent -FilterHashtable @{LogName='Microsoft-Windows-Diagnostics-Performance/Operational'; Id=100} -MaxEvents 40 | ForEach-Object { $x=[xml]$_.ToXml(); $v=@{}; foreach ($n in $x.Event.EventData.Data) { $v[$n.Name]=$n.'#text' }; [pscustomobject]@{ at=$_.TimeCreated.ToUniversalTime().ToString('o'); boot=[int64]$v['BootTime']; main=[int64]$v['MainPathBootTime']; post=[int64]$v['BootPostBootTime'] } })
 $rp=@(Get-ComputerRestorePoint | ForEach-Object { [pscustomobject]@{ at=$_.ConvertToDateTime($_.CreationTime).ToUniversalTime().ToString('o'); desc=[string]$_.Description } })
-[pscustomobject]@{ disks=$d; boots=$b; restore=$rp } | ConvertTo-Json -Depth 4 -Compress"#;
+$kinds=@{101='app';102='driver';103='service';106='other';107='other';108='other';109='device'}
+$sl=@(Get-WinEvent -FilterHashtable @{LogName='Microsoft-Windows-Diagnostics-Performance/Operational'; Id=101,102,103,106,107,108,109; StartTime=(Get-Date).AddDays(-60)} -MaxEvents 300 | ForEach-Object { $x=[xml]$_.ToXml(); $v=@{}; foreach ($n in $x.Event.EventData.Data) { $v[$n.Name]=$n.'#text' }; $nm=$v['FriendlyName']; if (-not $nm) { $nm=$v['Name'] }; [pscustomobject]@{ at=$_.TimeCreated.ToUniversalTime().ToString('o'); kind=$kinds[[int]$_.Id]; name=[string]$nm; total=[int64]$v['TotalTime']; extra=[int64]$v['DegradationTime'] } })
+[pscustomobject]@{ disks=$d; boots=$b; restore=$rp; slow=$sl } | ConvertTo-Json -Depth 4 -Compress"#;
 
 /// Whether System Protection (restore points) is on for the system drive.
 /// Readable without admin.
@@ -214,6 +231,9 @@ mod tests {
         let n = parse_deep(r#"{"disks":[{"id":"1","wear":null,"temp":null}],"boots":[],"restore":[{"at":"x","desc":"WhatsInside"}]}"#).unwrap();
         assert_eq!(n.disks[0].wear, None);
         assert_eq!(n.restore[0].desc, "WhatsInside");
+        let sl = parse_deep(r#"{"disks":[],"boots":[],"restore":[],"slow":{"at":"2026-11-01T08:00:00Z","kind":"app","name":"Discord","total":6200,"extra":4200}}"#).unwrap();
+        assert_eq!(sl.slow[0].name, "Discord");
+        assert_eq!(sl.slow[0].extra, 4200);
     }
 
     #[test]

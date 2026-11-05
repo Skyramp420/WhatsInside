@@ -55,6 +55,11 @@ pub enum Action {
         label: String,
     },
     EmptyBin,
+    /// System restore point (admin). Added automatically before the first
+    /// changes of the day when the user wants it.
+    RestorePoint,
+    /// Turn on System Protection for the system drive (admin).
+    EnableProtection,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
@@ -146,6 +151,7 @@ fn always_admin(a: &Action) -> bool {
     match a {
         // Caches inside C:\Windows (update downloads, crash dumps, Windows\Temp).
         Action::Clean { path, .. } => crate::catalog::is_windows_path(path),
+        Action::RestorePoint | Action::EnableProtection => true,
         Action::Startup { toggle: Toggle::Service { .. }, .. } => true,
         Action::Startup { toggle: Toggle::Tweak { key }, .. } => tweaks::find(key).is_some_and(|t| t.admin),
         _ => false,
@@ -195,6 +201,56 @@ fn now() -> u64 {
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs())
         .unwrap_or(0)
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
+pub struct RestoreState {
+    /// Unix seconds of the last restore point WhatsInside made.
+    pub last: u64,
+    pub error: Option<String>,
+}
+
+fn restore_path() -> Option<PathBuf> {
+    data_dir().map(|d| d.join("restore.json"))
+}
+
+pub fn restore_state() -> RestoreState {
+    restore_path()
+        .and_then(|p| std::fs::read(p).ok())
+        .and_then(|b| serde_json::from_slice(&b).ok())
+        .unwrap_or_default()
+}
+
+fn save_restore_state(s: &RestoreState) {
+    if let Some(p) = restore_path() {
+        if let Some(d) = p.parent() {
+            let _ = std::fs::create_dir_all(d);
+        }
+        let _ = std::fs::write(p, serde_json::to_vec(s).unwrap_or_default());
+    }
+}
+
+/// Like `apply`, but first makes a restore point when `restore` is on, the
+/// batch changes settings, and the last one is older than a day.
+pub fn apply_with(actions: Vec<Action>, restore: bool) -> Vec<Outcome> {
+    let changes_settings = actions.iter().any(|a| matches!(a, Action::Startup { .. }));
+    let due = now().saturating_sub(restore_state().last) > 86_400;
+    if !(restore && changes_settings && due) {
+        return apply(actions);
+    }
+    let mut all = vec![Action::RestorePoint];
+    all.extend(actions);
+    let mut out = apply(all);
+    let rp = out.remove(0);
+    let mut st = restore_state();
+    if rp.ok {
+        st.last = now();
+        st.error = None;
+    } else {
+        st.error = rp.error;
+    }
+    save_restore_state(&st);
+    out
 }
 
 /// Applies actions: as the user where possible, the rest in one UAC prompt.
@@ -297,7 +353,16 @@ pub fn apply(actions: Vec<Action>) -> Vec<Outcome> {
                 undone: false,
                 detail: o.freed.map(|f| format!("Vysypaný · uvoľnené {}", human(f))),
             }),
-            Action::Launch { .. } | Action::RestartExplorer => {}
+            Action::RestorePoint => log.push(Change {
+                at: now(),
+                id: "restore".into(),
+                name: "Bod obnovenia systému".into(),
+                toggle: None,
+                enabled: true,
+                undone: false,
+                detail: Some("Vytvorený pred zmenami".into()),
+            }),
+            Action::Launch { .. } | Action::RestartExplorer | Action::EnableProtection => {}
         }
     }
     if log.len() > 300 {
@@ -384,6 +449,8 @@ mod platform {
             Action::Clean { path, .. } => crate::storage::clean_contents(path).map(Some),
             Action::Trash { path, .. } => trash(path).map(Some),
             Action::EmptyBin => empty_bin().map(Some),
+            Action::RestorePoint => crate::deep::create_restore_point().map(|_| None),
+            Action::EnableProtection => crate::deep::enable_protection().map(|_| None),
             other => apply_plain(other).map(|_| None),
         }
     }
@@ -451,7 +518,9 @@ mod platform {
             Action::Kill { pid, exe } => kill(*pid, exe),
             Action::Launch { path } => launch(path),
             Action::Uninstall { full, .. } => crate::appx::uninstall(full),
-            Action::Clean { .. } | Action::Trash { .. } | Action::EmptyBin => Err("Nečakaná akcia.".into()),
+            Action::Clean { .. } | Action::Trash { .. } | Action::EmptyBin | Action::RestorePoint | Action::EnableProtection => {
+                Err("Nečakaná akcia.".into())
+            }
             Action::RestartExplorer => {
                 let _ = std::process::Command::new("taskkill")
                     .args(["/F", "/IM", "explorer.exe"])

@@ -9,7 +9,7 @@
 //! hard-link de-duplication (C:\Windows\WinSxS looks bigger than it is).
 
 use rayon::prelude::*;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::cmp::Reverse;
 use std::collections::{BinaryHeap, HashMap};
 use std::path::{Path, PathBuf};
@@ -421,6 +421,8 @@ pub struct Hit {
 }
 
 pub struct Tree {
+    /// Folder sizes from the previous scan of the same place.
+    pub prev: Option<Snapshot>,
     nodes: Vec<Node>,
     root_path: String,
     tags: HashMap<u32, Tag>,
@@ -617,6 +619,7 @@ struct Build<'a> {
 impl Tree {
     fn build(root: ScanDir, root_path: &str, top: Vec<TopFile>, today: u32) -> Tree {
         let mut t = Tree {
+            prev: None,
             nodes: Vec::new(),
             root_path: root_path.to_string(),
             tags: HashMap::new(),
@@ -1146,7 +1149,11 @@ impl Scanner {
                 .map(|Reverse((size, path))| TopFile { path, size })
                 .collect();
             top.sort_by_key(|f| Reverse(f.size));
-            let tree = Tree::build(scanned, &root, top, today());
+            let mut tree = Tree::build(scanned, &root, top, today());
+            // Compare with last time, then remember this scan for next time.
+            tree.prev = load_snapshot(&root);
+            let now = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+            save_snapshot(&tree.snapshot(now));
             *tree_slot.lock().unwrap() = Some(tree);
         });
     }
@@ -1203,6 +1210,122 @@ impl Scanner {
 
     pub fn with_tree<R>(&self, f: impl FnOnce(&Tree) -> R) -> Option<R> {
         self.tree.lock().unwrap().as_ref().map(f)
+    }
+}
+
+// ---------------------------------------------------------------- growth
+
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
+pub struct Snapshot {
+    /// Unix seconds.
+    pub at: u64,
+    pub root: String,
+    /// Folder path (as shown) and size.
+    pub items: Vec<(String, u64)>,
+}
+
+#[derive(Serialize, Clone, Debug, PartialEq)]
+pub struct GrowthItem {
+    pub path: String,
+    pub before: u64,
+    pub after: u64,
+    pub delta: i64,
+}
+
+#[derive(Serialize, Clone, Debug, Default)]
+pub struct Growth {
+    /// Unix seconds of the previous scan; 0 = no previous scan yet.
+    pub since: u64,
+    pub total_before: u64,
+    pub total_after: u64,
+    pub items: Vec<GrowthItem>,
+}
+
+impl Tree {
+    /// Folders down to 4 levels that hold at least 50 MB.
+    pub fn snapshot(&self, at: u64) -> Snapshot {
+        let mut items = Vec::new();
+        let mut stack = vec![(0u32, 0u8)];
+        while let Some((id, depth)) = stack.pop() {
+            let n = &self.nodes[id as usize];
+            if n.kind != Kind::Dir || n.size < 50 << 20 {
+                continue;
+            }
+            items.push((self.path_of(id), n.size));
+            if depth < 4 {
+                stack.extend(n.children.iter().map(|&c| (c, depth + 1)));
+            }
+        }
+        Snapshot { at, root: self.root_path.clone(), items }
+    }
+
+    pub fn growth(&self) -> Growth {
+        let Some(prev) = &self.prev else { return Growth::default() };
+        let now = self.snapshot(0);
+        let mut g = growth_between(prev, &now);
+        g.since = prev.at;
+        g
+    }
+}
+
+/// What changed between two snapshots: the deepest folders that explain
+/// each change, so "Users +30 GB" doesn't hide "CacheClip +28 GB".
+pub fn growth_between(before: &Snapshot, after: &Snapshot) -> Growth {
+    let key = |p: &str| p.to_lowercase();
+    let b: HashMap<String, (String, u64)> = before.items.iter().map(|(p, s)| (key(p), (p.clone(), *s))).collect();
+    let a: HashMap<String, (String, u64)> = after.items.iter().map(|(p, s)| (key(p), (p.clone(), *s))).collect();
+    let mut all: Vec<(String, String, u64, u64)> = Vec::new();
+    for (k, (p, s)) in &a {
+        all.push((k.clone(), p.clone(), b.get(k).map(|x| x.1).unwrap_or(0), *s));
+    }
+    for (k, (p, s)) in &b {
+        if !a.contains_key(k) {
+            all.push((k.clone(), p.clone(), *s, 0));
+        }
+    }
+    let total_before = before.items.first().map(|x| x.1).unwrap_or(0);
+    let total_after = after.items.first().map(|x| x.1).unwrap_or(0);
+    const MIN: i64 = 256 << 20;
+    let mut cand: Vec<(String, GrowthItem)> = all
+        .into_iter()
+        .map(|(k, p, bs, as_)| (k, GrowthItem { path: p, before: bs, after: as_, delta: as_ as i64 - bs as i64 }))
+        .filter(|(_, g)| g.delta.abs() >= MIN)
+        .collect();
+    cand.sort_by_key(|(k, _)| std::cmp::Reverse(k.matches('\\').count()));
+    let mut chosen: Vec<(String, GrowthItem)> = Vec::new();
+    for (k, g) in cand {
+        let prefix = format!("{k}\\");
+        let explained: i64 = chosen
+            .iter()
+            .filter(|(ck, cg)| ck.starts_with(&prefix) && cg.delta.signum() == g.delta.signum())
+            .map(|(_, cg)| cg.delta)
+            .sum();
+        if (explained.abs() as f64) < 0.7 * g.delta.abs() as f64 {
+            chosen.push((k, g));
+        }
+    }
+    let mut items: Vec<GrowthItem> = chosen.into_iter().map(|(_, g)| g).collect();
+    items.sort_by_key(|g| std::cmp::Reverse(g.delta.abs()));
+    items.truncate(25);
+    Growth { since: before.at, total_before, total_after, items }
+}
+
+fn snapshot_file(root: &str) -> Option<PathBuf> {
+    let key: String = root.to_lowercase().chars().map(|c| if c.is_ascii_alphanumeric() { c } else { '_' }).collect();
+    std::env::var("LOCALAPPDATA").ok().map(|d| PathBuf::from(d).join("WhatsInside").join("snapshots").join(format!("{key}.json")))
+}
+
+fn load_snapshot(root: &str) -> Option<Snapshot> {
+    serde_json::from_slice(&std::fs::read(snapshot_file(root)?).ok()?).ok()
+}
+
+fn save_snapshot(s: &Snapshot) {
+    let Some(p) = snapshot_file(&s.root) else { return };
+    if let Some(d) = p.parent() {
+        let _ = std::fs::create_dir_all(d);
+    }
+    if let Ok(j) = serde_json::to_vec(s) {
+        let _ = std::fs::write(p, j);
     }
 }
 
@@ -1525,6 +1648,23 @@ mod tests {
         })
         .unwrap();
         let _ = fs::remove_dir_all(&base);
+    }
+
+    #[test]
+    fn finds_what_grew() {
+        let gb = 1u64 << 30;
+        let snap = |items: &[(&str, u64)]| Snapshot { at: 1, root: "C:".into(), items: items.iter().map(|(p, s)| (p.to_string(), *s)).collect() };
+        let before = snap(&[("C:", 400 * gb), ("C:\\Users", 200 * gb), ("C:\\Users\\Alex", 190 * gb), ("C:\\Users\\Alex\\Videos", 50 * gb), ("C:\\Games", 100 * gb), ("C:\\Old", 5 * gb)]);
+        let after = snap(&[("C:", 425 * gb), ("C:\\Users", 230 * gb), ("C:\\Users\\Alex", 220 * gb), ("C:\\Users\\Alex\\Videos", 79 * gb), ("C:\\Games", 100 * gb)]);
+        let g = growth_between(&before, &after);
+        assert_eq!(g.total_before, 400 * gb);
+        assert_eq!(g.total_after, 425 * gb);
+        // Videos explains Users and Alex, so they don't show up on their own.
+        assert_eq!(g.items[0].path, "C:\\Users\\Alex\\Videos");
+        assert_eq!(g.items[0].delta, 29 * gb as i64);
+        assert!(g.items.iter().any(|i| i.path == "C:\\Old" && i.delta == -(5 * gb as i64)));
+        assert!(!g.items.iter().any(|i| i.path == "C:\\Users"));
+        assert!(!g.items.iter().any(|i| i.path == "C:\\Games"));
     }
 
     #[test]

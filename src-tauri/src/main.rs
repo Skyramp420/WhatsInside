@@ -12,6 +12,7 @@ mod appx;
 mod autostart;
 mod bench;
 mod catalog;
+mod deep;
 mod display;
 mod games;
 mod gpu;
@@ -19,6 +20,7 @@ mod hw;
 mod known;
 mod mft;
 mod procs;
+mod stability;
 mod storage;
 mod system;
 mod tweaks;
@@ -45,8 +47,44 @@ async fn autostart_list() -> Vec<autostart::Item> {
 }
 
 #[tauri::command]
-async fn actions_apply(actions: Vec<actions::Action>) -> Vec<actions::Outcome> {
-    actions::apply(actions)
+async fn actions_apply(actions: Vec<actions::Action>, restore: Option<bool>) -> Vec<actions::Outcome> {
+    actions::apply_with(actions, restore.unwrap_or(false))
+}
+
+#[tauri::command]
+async fn stability_report() -> stability::Report {
+    stability::report()
+}
+
+#[tauri::command]
+async fn disks_list() -> Vec<deep::Disk> {
+    deep::disks()
+}
+
+/// SSD wear, boot times and restore points: one elevated run.
+#[tauri::command]
+async fn deep_check() -> Result<deep::Deep, String> {
+    let out = std::env::temp_dir().join(format!("whatsinside-deep-{}.json", std::process::id()));
+    let code = actions::run_self_elevated(&format!("--deep \"{}\"", out.to_string_lossy()))?;
+    let text = std::fs::read_to_string(&out).unwrap_or_default();
+    let _ = std::fs::remove_file(&out);
+    if code != 0 {
+        return Err(format!("Hĺbková kontrola skončila s chybou {code}."));
+    }
+    deep::parse_deep(&text).ok_or_else(|| "Hĺbková kontrola nevrátila výsledok.".to_string())
+}
+
+#[derive(serde::Serialize)]
+struct RestoreInfo {
+    protection: bool,
+    last: u64,
+    error: Option<String>,
+}
+
+#[tauri::command]
+async fn restore_status() -> RestoreInfo {
+    let s = actions::restore_state();
+    RestoreInfo { protection: deep::protection(), last: s.last, error: s.error }
 }
 
 #[tauri::command]
@@ -251,6 +289,11 @@ async fn storage_owners(state: State<'_, AppState>) -> Result<storage::Owners, S
 }
 
 #[tauri::command]
+async fn storage_growth(state: State<'_, AppState>) -> Result<storage::Growth, String> {
+    Ok(state.scanner.with_tree(|t| t.growth()).unwrap_or_default())
+}
+
+#[tauri::command]
 async fn storage_old(state: State<'_, AppState>) -> Result<Vec<storage::OldFile>, String> {
     Ok(state
         .scanner
@@ -411,6 +454,10 @@ fn main() {
             }
         }
     }
+    if let Some(i) = args.iter().position(|a| a == "--deep") {
+        let code = args.get(i + 1).map(|o| deep::run_helper(o)).unwrap_or(2);
+        std::process::exit(code);
+    }
     if let Some(i) = args.iter().position(|a| a == "--apply") {
         if let (Some(input), Some(output)) = (args.get(i + 1), args.get(i + 2)) {
             actions::run_batch(input, output);
@@ -435,6 +482,11 @@ fn main() {
             storage_old,
             storage_search,
             storage_clean,
+            storage_growth,
+            stability_report,
+            disks_list,
+            deep_check,
+            restore_status,
             quick_check,
             system_facts,
             pc_specs,

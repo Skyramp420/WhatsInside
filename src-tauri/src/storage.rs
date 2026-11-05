@@ -367,6 +367,7 @@ struct Node {
 pub struct CacheHit {
     pub label: &'static str,
     pub hint: &'static str,
+    pub how: &'static str,
     pub path: String,
     pub size: u64,
     pub files: u64,
@@ -434,6 +435,10 @@ pub struct CacheRule {
     matches: &'static [&'static str],
     pub label: &'static str,
     pub hint: &'static str,
+    /// How WhatsInside may clean it: "contents" (delete what's inside),
+    /// "careful" (same, but say what you lose), "bin" (empty the Recycle
+    /// Bin) or "settings" (only Windows can, e.g. Windows.old).
+    pub how: &'static str,
 }
 
 pub const CACHE_RULES: &[CacheRule] = &[
@@ -441,76 +446,91 @@ pub const CACHE_RULES: &[CacheRule] = &[
         matches: &["=cacheclip"],
         label: "DaVinci Resolve – render cache",
         hint: "Resolve si ju vytvorí znova. Zmaž ju v Resolve (Playback → Delete Render Cache) alebo keď Resolve nebeží.",
+        how: "contents",
     },
     CacheRule {
         matches: &["=optimizedmedia"],
         label: "DaVinci Resolve – optimalizované médiá",
         hint: "Nie sú to originály, ale ich znovuvytvorenie trvá dlho. Maž len pri projektoch, na ktorých už nerobíš.",
+        how: "careful",
     },
     CacheRule {
         matches: &["=proxymedia"],
         label: "DaVinci Resolve – proxy",
         hint: "Nie sú to originály. Maž len pri projektoch, na ktorých už nerobíš.",
+        how: "careful",
     },
     CacheRule {
         matches: &[r"\adobe\common\media cache files", r"\adobe\common\media cache", r"\adobe\common\peak files"],
         label: "Adobe – media cache (Premiere, After Effects)",
         hint: "Bezpečné zmazať, keď Adobe appky nebežia. Vytvorí sa znova pri otvorení projektu.",
+        how: "contents",
     },
     CacheRule {
         matches: &[r"\after effects disk cache", r"\adobe\after effects\disk cache", r"\aedisk cache"],
         label: "After Effects – disk cache",
         hint: "Bezpečné zmazať (Edit → Purge → All Memory & Disk Cache).",
+        how: "contents",
     },
     CacheRule {
         matches: &[r"\nvidia\dxcache", r"\nvidia\glcache", r"\nvidia corporation\nv_cache", r"\local\d3dscache", r"\amd\dxcache"],
         label: "Shader cache grafiky",
         hint: "Hry si ju vytvoria znova. Prvé spustenie hry potom môže chvíľu sekať.",
+        how: "contents",
     },
     CacheRule {
         matches: &[r"\steamapps\shadercache"],
         label: "Steam – shader cache",
         hint: "Steam si ju stiahne alebo vytvorí znova.",
+        how: "contents",
     },
     CacheRule {
         matches: &[r"\steamapps\downloading"],
         label: "Steam – nedokončené sťahovanie",
         hint: "Zvyšky prerušených aktualizácií. Ak nič nesťahuješ, dá sa zmazať (Steam → Nastavenia → Sťahovanie → Vymazať cache).",
+        how: "careful",
     },
     CacheRule {
         matches: &[r"\windows\softwaredistribution\download"],
         label: "Stiahnuté aktualizácie Windowsu",
         hint: "Maž cez Nastavenia → Systém → Úložisko → Dočasné súbory. Windows si ich stiahne znova, ak bude treba.",
+        how: "contents",
     },
     CacheRule {
         matches: &[r"\windows.old", r"\$windows.~bt", r"\$windows.~ws"],
         label: "Stará verzia Windowsu",
         hint: "Zostala po veľkej aktualizácii. Maž cez Nastavenia → Systém → Úložisko → Dočasné súbory → Predchádzajúce inštalácie Windowsu.",
+        how: "settings",
     },
     CacheRule {
         matches: &[r"\windows\minidump", r"\windows\livekernelreports", r"\appdata\local\crashdumps"],
         label: "Výpisy po pádoch",
         hint: "Záznamy po pádoch appiek a systému. Treba ich len pri hľadaní príčiny pádu, inak sa dajú zmazať.",
+        how: "careful",
     },
     CacheRule {
         matches: &[r"\appdata\local\temp", r"\windows\temp"],
         label: "Dočasné súbory",
         hint: "Bezpečné zmazať. Súbory, ktoré sa práve používajú, Windows zmazať nedovolí, a to je v poriadku.",
+        how: "contents",
     },
     CacheRule {
         matches: &[r"\google\chrome\user data\default\cache", r"\microsoft\edge\user data\default\cache", r"\bravesoftware\brave-browser\user data\default\cache"],
         label: "Cache prehliadača",
         hint: "Bezpečné zmazať v nastaveniach prehliadača. Stránky sa načítajú znova.",
+        how: "contents",
     },
     CacheRule {
         matches: &[r"\discord\cache", r"\discord\code cache"],
         label: "Discord – cache",
         hint: "Bezpečné zmazať, keď Discord nebeží.",
+        how: "contents",
     },
     CacheRule {
         matches: &[r"\$recycle.bin"],
         label: "Kôš",
         hint: "Súbory, ktoré si už zmazal. Vysypaj Kôš.",
+        how: "bin",
     },
 ];
 
@@ -521,6 +541,50 @@ fn match_cache(lower_path: &str, lower_name: &str) -> Option<&'static CacheRule>
             None => lower_path.ends_with(m),
         })
     })
+}
+
+/// The cache rule a folder falls under, if any. Used to check every path
+/// before anything inside it gets deleted.
+pub fn clean_rule(path: &str) -> Option<&'static CacheRule> {
+    let p = Path::new(path);
+    if !p.is_absolute() || p.parent().is_none() || path.contains("..") {
+        return None;
+    }
+    let lower = path.trim_end_matches(['\\', '/']).to_lowercase().replace('/', "\\");
+    let name = p.file_name()?.to_string_lossy().to_lowercase();
+    match_cache(&lower, &name)
+}
+
+/// Size of a folder, following no links.
+pub fn folder_size(p: &Path) -> u64 {
+    let Ok(rd) = std::fs::read_dir(p) else { return 0 };
+    rd.flatten()
+        .map(|e| match e.file_type() {
+            Ok(t) if t.is_symlink() => 0,
+            Ok(t) if t.is_dir() => folder_size(&e.path()),
+            _ => e.metadata().map(|m| m.len()).unwrap_or(0),
+        })
+        .sum()
+}
+
+/// Deletes what's inside a known cache folder (the folder itself stays).
+/// Files in use are skipped. Returns the bytes freed.
+pub fn clean_contents(path: &str) -> Result<u64, String> {
+    let rule = clean_rule(path).ok_or("Tento priečinok nepoznám ako cache, nezmažem ho.")?;
+    if rule.how != "contents" && rule.how != "careful" {
+        return Err("Toto vie bezpečne vyčistiť len Windows.".into());
+    }
+    let p = Path::new(path);
+    let before = folder_size(p);
+    let rd = std::fs::read_dir(p).map_err(|e| e.to_string())?;
+    for e in rd.flatten() {
+        let ep = e.path();
+        let _ = match e.file_type() {
+            Ok(t) if t.is_dir() && !t.is_symlink() => std::fs::remove_dir_all(&ep),
+            _ => std::fs::remove_file(&ep),
+        };
+    }
+    Ok(before.saturating_sub(folder_size(p)))
 }
 
 const INSTALLER_EXT: &[&str] = &["exe", "msi", "msix", "iso", "zip", "rar", "7z"];
@@ -626,6 +690,48 @@ impl Tree {
             p.push_str(n);
         }
         p
+    }
+
+    /// Node of a path inside the scanned folder.
+    pub fn find(&self, path: &str) -> Option<u32> {
+        let norm = |p: &str| p.trim_end_matches(['\\', '/']).to_lowercase().replace('/', "\\");
+        let root = norm(&self.root_path);
+        let lower = norm(path);
+        let rest = lower.strip_prefix(&root)?;
+        let mut cur = 0u32;
+        for part in rest.split('\\').filter(|x| !x.is_empty()) {
+            cur = *self.nodes[cur as usize]
+                .children
+                .iter()
+                .find(|&&c| self.nodes[c as usize].name.to_lowercase() == part)?;
+        }
+        Some(cur)
+    }
+
+    /// After cleaning: `freed` bytes are gone from `path` (and all folders
+    /// above it). `gone` = the whole item went to the Recycle Bin.
+    pub fn shrink(&mut self, path: &str, freed: u64, gone: bool) {
+        let Some(id) = self.find(path) else { return };
+        let files = if gone { self.nodes[id as usize].files } else { 0 };
+        let mut cur = id;
+        while cur != NONE {
+            let n = &mut self.nodes[cur as usize];
+            n.size = n.size.saturating_sub(freed);
+            n.files = n.files.saturating_sub(files);
+            cur = n.parent;
+        }
+        let norm = |p: &str| p.to_lowercase().replace('/', "\\");
+        let lower = norm(path);
+        for c in &mut self.caches {
+            if norm(&c.path) == lower {
+                c.size = c.size.saturating_sub(freed);
+            }
+        }
+        self.caches.retain(|c| c.size > 0);
+        if gone {
+            self.top_files.retain(|f| norm(&f.path) != lower);
+            self.old_files.retain(|f| norm(&f.path) != lower);
+        }
     }
 
     pub fn contains_path(&self, path: &str) -> bool {
@@ -836,6 +942,7 @@ impl Build<'_> {
                         t.caches.push(CacheHit {
                             label: rule.label,
                             hint: rule.hint,
+                            how: rule.how,
                             path: path.to_string(),
                             size: d.size,
                             files: d.files,
@@ -991,6 +1098,12 @@ pub struct Scanner {
 }
 
 impl Scanner {
+    pub fn with_tree_mut<R>(&self, f: impl FnOnce(&mut Tree) -> R) -> Option<R> {
+        self.tree.lock().unwrap().as_mut().map(f)
+    }
+}
+
+impl Scanner {
     pub fn start(&self, root: String) {
         self.start_with(root, None);
     }
@@ -1100,6 +1213,7 @@ impl Scanner {
 pub struct QuickHit {
     pub label: &'static str,
     pub hint: &'static str,
+    pub how: &'static str,
     pub path: String,
     pub size: u64,
     pub files: u64,
@@ -1124,6 +1238,7 @@ pub fn quick_check(
             QuickHit {
                 label: rule.label,
                 hint: rule.hint,
+                how: rule.how,
                 path: p.clone(),
                 size: d.size,
                 files: d.files,
@@ -1409,6 +1524,40 @@ mod tests {
             assert!(t.search("  ", 10).is_empty());
         })
         .unwrap();
+        let _ = fs::remove_dir_all(&base);
+    }
+
+    #[test]
+    fn cleans_only_known_caches() {
+        let base = std::env::temp_dir().join(format!("wi-clean-{}", std::process::id()));
+        let cache = base.join("AppData").join("Local").join("Temp");
+        fs::create_dir_all(cache.join("sub")).unwrap();
+        fs::write(cache.join("a.tmp"), vec![0u8; 1000]).unwrap();
+        fs::write(cache.join("sub").join("b.tmp"), vec![0u8; 500]).unwrap();
+        let other = base.join("Documents");
+        fs::create_dir_all(&other).unwrap();
+        fs::write(other.join("thesis.docx"), b"x").unwrap();
+
+        assert_eq!(clean_rule(&cache.to_string_lossy()).unwrap().label, "Dočasné súbory");
+        assert!(clean_rule(&other.to_string_lossy()).is_none());
+        assert!(clean_contents(&other.to_string_lossy()).is_err());
+        assert!(clean_contents("Temp").is_err()); // relative paths never
+        assert_eq!(clean_contents(&cache.to_string_lossy()).unwrap(), 1500);
+        assert!(cache.is_dir() && fs::read_dir(&cache).unwrap().next().is_none());
+        assert!(other.join("thesis.docx").exists());
+
+        // The tree follows: sizes shrink up to the root, the cache entry goes away.
+        fs::write(cache.join("c.tmp"), vec![0u8; 2 << 20]).unwrap();
+        let s = Scanner::default();
+        s.start(base.to_string_lossy().into_owned());
+        wait(&s);
+        let mut t = s.tree.lock().unwrap().take().unwrap();
+        let before = t.nodes[0].size;
+        let cp = cache.to_string_lossy().into_owned();
+        assert!(t.find(&cp).is_some());
+        t.shrink(&cp, 2 << 20, false);
+        assert_eq!(t.nodes[0].size, before - (2 << 20));
+        assert!(t.caches.is_empty());
         let _ = fs::remove_dir_all(&base);
     }
 

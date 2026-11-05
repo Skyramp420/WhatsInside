@@ -44,6 +44,17 @@ pub enum Action {
     },
     /// Restart File Explorer so taskbar and menu changes show up.
     RestartExplorer,
+    /// Delete what's inside a known cache folder (checked against the rules).
+    Clean {
+        path: String,
+        label: String,
+    },
+    /// Move files or folders to the Recycle Bin.
+    Trash {
+        path: String,
+        label: String,
+    },
+    EmptyBin,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
@@ -52,6 +63,9 @@ pub struct Outcome {
     pub error: Option<String>,
     /// Done through the UAC prompt.
     pub elevated: bool,
+    /// Bytes freed by cleaning.
+    #[serde(default)]
+    pub freed: Option<u64>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -67,6 +81,21 @@ pub struct Change {
     pub enabled: bool,
     #[serde(default)]
     pub undone: bool,
+    /// Extra line for the history, e.g. "Uvoľnené 12,3 GB".
+    #[serde(default)]
+    pub detail: Option<String>,
+}
+
+/// "12,3 GB" for the history.
+pub fn human(b: u64) -> String {
+    let units = ["B", "KB", "MB", "GB", "TB"];
+    let mut v = b as f64;
+    let mut u = 0;
+    while v >= 1024.0 && u < units.len() - 1 {
+        v /= 1024.0;
+        u += 1;
+    }
+    if u == 0 { format!("{b} B") } else { format!("{:.1} {}", v, units[u]).replace('.', ",") }
 }
 
 /// The exact commands that perform a change. Kept separate so they can be
@@ -115,6 +144,8 @@ pub fn commands_for(toggle: &Toggle, enable: bool) -> Vec<Cmd> {
 /// Services always need admin; others are tried as the user first.
 fn always_admin(a: &Action) -> bool {
     match a {
+        // Caches inside C:\Windows (update downloads, crash dumps, Windows\Temp).
+        Action::Clean { path, .. } => crate::catalog::is_windows_path(path),
         Action::Startup { toggle: Toggle::Service { .. }, .. } => true,
         Action::Startup { toggle: Toggle::Tweak { key }, .. } => tweaks::find(key).is_some_and(|t| t.admin),
         _ => false,
@@ -177,7 +208,10 @@ pub fn apply(actions: Vec<Action>) -> Vec<Outcome> {
             continue;
         }
         match platform::apply_one(a) {
-            Ok(()) => out[i].ok = true,
+            Ok(freed) => {
+                out[i].ok = true;
+                out[i].freed = freed;
+            }
             Err(e) => {
                 // Only startup changes are worth a UAC retry.
                 if !elevated_now && matches!(a, Action::Startup { .. }) {
@@ -197,6 +231,7 @@ pub fn apply(actions: Vec<Action>) -> Vec<Outcome> {
                         ok: false,
                         error: Some("Bez odpovede.".into()),
                         elevated: true,
+                        freed: None,
                     });
                     out[i] = Outcome { elevated: true, ..r };
                 }
@@ -222,6 +257,7 @@ pub fn apply(actions: Vec<Action>) -> Vec<Outcome> {
                 toggle: Some(toggle.clone()),
                 enabled: *enable,
                 undone: false,
+                detail: None,
             }),
             Action::Kill { pid, exe } => log.push(Change {
                 at: now(),
@@ -230,6 +266,7 @@ pub fn apply(actions: Vec<Action>) -> Vec<Outcome> {
                 toggle: None,
                 enabled: false,
                 undone: false,
+                detail: None,
             }),
             Action::Uninstall { full, name } => log.push(Change {
                 at: now(),
@@ -238,6 +275,27 @@ pub fn apply(actions: Vec<Action>) -> Vec<Outcome> {
                 toggle: None,
                 enabled: false,
                 undone: false,
+                detail: None,
+            }),
+            Action::Clean { path, label } | Action::Trash { path, label } => log.push(Change {
+                at: now(),
+                id: format!("{}:{}", if matches!(a, Action::Clean { .. }) { "clean" } else { "trash" }, path.to_lowercase()),
+                name: label.clone(),
+                toggle: None,
+                enabled: false,
+                undone: false,
+                detail: o.freed.map(|f| {
+                    if matches!(a, Action::Trash { .. }) { format!("Do Koša · {}", human(f)) } else { format!("Uvoľnené {}", human(f)) }
+                }),
+            }),
+            Action::EmptyBin => log.push(Change {
+                at: now(),
+                id: "bin".into(),
+                name: "Kôš".into(),
+                toggle: None,
+                enabled: false,
+                undone: false,
+                detail: o.freed.map(|f| format!("Vysypaný · uvoľnené {}", human(f))),
             }),
             Action::Launch { .. } | Action::RestartExplorer => {}
         }
@@ -289,8 +347,8 @@ pub fn run_batch(input: &str, output: &str) {
     let res: Vec<Outcome> = actions
         .iter()
         .map(|a| match platform::apply_one(a) {
-            Ok(()) => Outcome { ok: true, error: None, elevated: true },
-            Err(e) => Outcome { ok: false, error: Some(e), elevated: true },
+            Ok(freed) => Outcome { ok: true, error: None, elevated: true, freed },
+            Err(e) => Outcome { ok: false, error: Some(e), elevated: true, freed: None },
         })
         .collect();
     let _ = std::fs::write(output, serde_json::to_vec(&res).unwrap_or_default());
@@ -321,7 +379,51 @@ mod platform {
         s.encode_utf16().chain(std::iter::once(0)).collect()
     }
 
-    pub fn apply_one(a: &Action) -> Result<(), String> {
+    pub fn apply_one(a: &Action) -> Result<Option<u64>, String> {
+        match a {
+            Action::Clean { path, .. } => crate::storage::clean_contents(path).map(Some),
+            Action::Trash { path, .. } => trash(path).map(Some),
+            Action::EmptyBin => empty_bin().map(Some),
+            other => apply_plain(other).map(|_| None),
+        }
+    }
+
+    /// Moves a file or folder to the Recycle Bin. Returns its size.
+    fn trash(path: &str) -> Result<u64, String> {
+        use windows::Win32::UI::Shell::{SHFileOperationW, SHFILEOPSTRUCTW};
+        let p = std::path::Path::new(path);
+        if !p.is_absolute() || p.parent().is_none() || catalog::is_windows_path(path) {
+            return Err("Toto do Koša nepresuniem.".into());
+        }
+        let size = if p.is_dir() { crate::storage::folder_size(p) } else { p.metadata().map(|m| m.len()).unwrap_or(0) };
+        // Double-NUL terminated list with one path.
+        let mut from: Vec<u16> = path.encode_utf16().collect();
+        from.extend([0, 0]);
+        let mut op = SHFILEOPSTRUCTW {
+            wFunc: 3, // FO_DELETE
+            pFrom: PCWSTR(from.as_ptr()),
+            fFlags: (0x40 | 0x10 | 0x04 | 0x400) as u16, // ALLOWUNDO | NOCONFIRMATION | SILENT | NOERRORUI
+            ..Default::default()
+        };
+        let r = unsafe { SHFileOperationW(&mut op) };
+        if r != 0 || p.exists() {
+            return Err(format!("Nepodarilo sa presunúť do Koša (kód {r}). Možno je súbor otvorený."));
+        }
+        Ok(size)
+    }
+
+    /// Empties the Recycle Bin on all drives. Returns how much it held.
+    fn empty_bin() -> Result<u64, String> {
+        let script = "$s=0; try { $s=((New-Object -ComObject Shell.Application).NameSpace(10).Items() | Measure-Object -Property Size -Sum).Sum } catch {}; Clear-RecycleBin -Force -ErrorAction SilentlyContinue; [int64]$s";
+        let o = std::process::Command::new("powershell")
+            .args(["-NoProfile", "-NonInteractive", "-Command", script])
+            .creation_flags(CREATE_NO_WINDOW)
+            .output()
+            .map_err(|e| e.to_string())?;
+        Ok(String::from_utf8_lossy(&o.stdout).trim().parse().unwrap_or(0))
+    }
+
+    fn apply_plain(a: &Action) -> Result<(), String> {
         match a {
             Action::Startup { toggle, enable, .. } => {
                 let cmds = commands_for(toggle, *enable);
@@ -349,6 +451,7 @@ mod platform {
             Action::Kill { pid, exe } => kill(*pid, exe),
             Action::Launch { path } => launch(path),
             Action::Uninstall { full, .. } => crate::appx::uninstall(full),
+            Action::Clean { .. } | Action::Trash { .. } | Action::EmptyBin => Err("Nečakaná akcia.".into()),
             Action::RestartExplorer => {
                 let _ = std::process::Command::new("taskkill")
                     .args(["/F", "/IM", "explorer.exe"])
@@ -470,7 +573,7 @@ mod platform {
     pub fn is_admin() -> bool {
         false
     }
-    pub fn apply_one(_: &Action) -> Result<(), String> {
+    pub fn apply_one(_: &Action) -> Result<Option<u64>, String> {
         Err("Len na Windows.".into())
     }
     pub fn run_elevated(_: &[Action]) -> Result<Vec<Outcome>, String> {
@@ -513,6 +616,14 @@ mod tests {
         assert_eq!(c.len(), 2);
         assert!(commands_for(&Toggle::Tweak { key: "nope".into() }, true).is_empty());
         assert!(always_admin(&Action::Startup { id: String::new(), name: String::new(), toggle: Toggle::Tweak { key: "hags".into() }, enable: true }));
+    }
+
+    #[test]
+    fn formats_freed_space() {
+        assert_eq!(human(512), "512 B");
+        assert_eq!(human(1536), "1,5 KB");
+        assert_eq!(human(12_884_901_888), "12,0 GB");
+        assert!(always_admin(&Action::Clean { path: r"C:\Windows\SoftwareDistribution\Download".into(), label: String::new() }));
     }
 
     #[test]

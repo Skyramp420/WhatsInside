@@ -269,6 +269,52 @@ async fn storage_search(
         .unwrap_or_default())
 }
 
+#[derive(serde::Deserialize)]
+struct CleanItem {
+    /// "cache" (delete contents), "trash" (to the Recycle Bin), "bin" (empty it)
+    kind: String,
+    path: String,
+    label: String,
+}
+
+/// Cleans caches, sends files to the Recycle Bin or empties it. Cache
+/// folders are checked against the known rules, files must be inside the
+/// scanned folder. Afterwards the scan result follows along.
+#[tauri::command]
+async fn storage_clean(state: State<'_, AppState>, items: Vec<CleanItem>) -> Result<Vec<actions::Outcome>, String> {
+    let mut acts = Vec::new();
+    for it in &items {
+        acts.push(match it.kind.as_str() {
+            "cache" => {
+                if storage::clean_rule(&it.path).is_none() {
+                    return Err(format!("{} nie je známa cache.", it.path));
+                }
+                actions::Action::Clean { path: it.path.clone(), label: it.label.clone() }
+            }
+            "trash" => {
+                let inside = state.scanner.with_tree(|t| t.contains_path(&it.path)).unwrap_or(false);
+                if !inside {
+                    return Err("Tento súbor nie je v naskenovanom priečinku.".into());
+                }
+                actions::Action::Trash { path: it.path.clone(), label: it.label.clone() }
+            }
+            "bin" => actions::Action::EmptyBin,
+            _ => return Err("Neznáma akcia.".into()),
+        });
+    }
+    let res = actions::apply(acts);
+    state.scanner.with_tree_mut(|t| {
+        for (it, r) in items.iter().zip(&res) {
+            if let (true, Some(f)) = (r.ok, r.freed) {
+                if it.kind != "bin" {
+                    t.shrink(&it.path, f, it.kind == "trash");
+                }
+            }
+        }
+    });
+    Ok(res)
+}
+
 #[derive(serde::Serialize)]
 struct Quick {
     caches: Vec<storage::QuickHit>,
@@ -388,6 +434,7 @@ fn main() {
             storage_owners,
             storage_old,
             storage_search,
+            storage_clean,
             quick_check,
             system_facts,
             pc_specs,

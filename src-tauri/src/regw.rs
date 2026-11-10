@@ -75,6 +75,51 @@ pub fn parse(args: &[String]) -> Option<Op> {
     }
 }
 
+/// Value of `field` inside a `"A=1;B=0;"` settings string.
+pub fn field_value<'a>(cur: &'a str, field: &str) -> Option<&'a str> {
+    cur.split(';').filter_map(|p| p.split_once('=')).find(|(k, _)| k.trim().eq_ignore_ascii_case(field)).map(|(_, v)| v.trim())
+}
+
+/// The same string with `field` set to `value`, other fields untouched.
+pub fn merge_field(cur: &str, field: &str, value: &str) -> String {
+    let mut out = String::new();
+    let mut found = false;
+    for part in cur.split(';').map(str::trim).filter(|p| !p.is_empty()) {
+        match part.split_once('=') {
+            Some((k, _)) if k.trim().eq_ignore_ascii_case(field) => {
+                found = true;
+                out.push_str(&format!("{field}={value};"));
+            }
+            _ => {
+                out.push_str(part);
+                out.push(';');
+            }
+        }
+    }
+    if !found {
+        out.push_str(&format!("{field}={value};"));
+    }
+    out
+}
+
+/// Changes one field of a settings string in place (read, merge, write).
+#[cfg(windows)]
+pub fn set_field(key: &str, name: &str, field: &str, value: &str) -> Result<(), String> {
+    use winreg::enums::{HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE, KEY_READ, KEY_WOW64_64KEY};
+    let (hive, path) = split_key(key).ok_or("Neznámy kľúč.")?;
+    let rootk = winreg::RegKey::predef(if hive == Hive::Machine { HKEY_LOCAL_MACHINE } else { HKEY_CURRENT_USER });
+    let cur: String = rootk
+        .open_subkey_with_flags(&path, KEY_READ | KEY_WOW64_64KEY)
+        .and_then(|k| k.get_value(name))
+        .unwrap_or_default();
+    run(&Op::Set { hive, path, name: name.into(), data: Data::Sz(merge_field(&cur, field, value)) })
+}
+
+#[cfg(not(windows))]
+pub fn set_field(_: &str, _: &str, _: &str, _: &str) -> Result<(), String> {
+    Err("Len na Windows.".into())
+}
+
 #[cfg(windows)]
 pub fn run(op: &Op) -> Result<(), String> {
     use winreg::enums::{HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE, KEY_SET_VALUE, KEY_WOW64_64KEY, KEY_WRITE, REG_BINARY};
@@ -134,6 +179,15 @@ mod tests {
         assert_eq!(parse(&v(&["delete", r"HKCU\Software\Classes\CLSID\{x}", "/f"])), Some(Op::DeleteKey { hive: Hive::User, path: r"Software\Classes\CLSID\{x}".into() }));
         assert_eq!(parse(&v(&["delete", r"HKLM\A\B", "/v", "C", "/f"])), Some(Op::DeleteValue { hive: Hive::Machine, path: r"A\B".into(), name: "C".into() }));
         assert!(parse(&v(&["add", r"HKCR\x", "/v", "a", "/d", "1", "/f"])).is_none());
+    }
+
+    #[test]
+    fn merges_setting_fields() {
+        assert_eq!(merge_field("", "SwapEffectUpgradeEnable", "1"), "SwapEffectUpgradeEnable=1;");
+        assert_eq!(merge_field("VRROptimizeEnable=0;SwapEffectUpgradeEnable=0;", "SwapEffectUpgradeEnable", "1"), "VRROptimizeEnable=0;SwapEffectUpgradeEnable=1;");
+        assert_eq!(merge_field("AutoHDREnable=1", "VRROptimizeEnable", "1"), "AutoHDREnable=1;VRROptimizeEnable=1;");
+        assert_eq!(field_value("VRROptimizeEnable=0;SwapEffectUpgradeEnable=1;", "swapeffectupgradeenable"), Some("1"));
+        assert_eq!(field_value("", "X"), None);
     }
 
     #[test]

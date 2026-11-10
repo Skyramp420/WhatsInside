@@ -27,6 +27,8 @@ pub enum Op {
     Reg(RegOp),
     /// Active power plan: High performance when on, Balanced when off.
     PowerPlan,
+    /// One `field=value;` inside a settings string that holds several.
+    Field { key: &'static str, name: &'static str, field: &'static str, on: &'static str, off: &'static str },
 }
 
 pub struct Tweak {
@@ -73,6 +75,8 @@ const fn reg_default_on(
 ) -> Op {
     Op::Reg(RegOp { key, name, ty: "REG_DWORD", on: Some(on), off: Some(off), absent: Some(on), delete_key: None })
 }
+
+const DX_USER: &str = r"HKCU\Software\Microsoft\DirectX\UserGpuPreferences";
 
 pub const TWEAKS: &[Tweak] = &[
     Tweak {
@@ -161,6 +165,46 @@ pub const TWEAKS: &[Tweak] = &[
         restart: "reboot",
         only_if_exists: true,
         ops: &[reg(r"HKLM\SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\HypervisorEnforcedCodeIntegrity", "Enabled", "REG_DWORD", Some("0"), Some("1"))],
+    },
+    Tweak {
+        key: "windowed_opt",
+        icon: "monitor",
+        title: "Optimalizácie pre hry v okne",
+        about: "Staršie hry (DirectX 10 a 11) v okne alebo v okne bez okrajov majú vyššie oneskorenie než na celej obrazovke. Windows 11 ich vie prepnúť na novší spôsob vykresľovania: nižšia odozva a funguje v nich Auto HDR aj premenlivá obnovovacia frekvencia. Na Windows 10 nerobí nič.",
+        effect: "big",
+        category: "games",
+        admin: false,
+        restart: "",
+        only_if_exists: false,
+        ops: &[Op::Field { key: DX_USER, name: "DirectXUserGlobalSettings", field: "SwapEffectUpgradeEnable", on: "1", off: "0" }],
+    },
+    Tweak {
+        key: "vrr_windowed",
+        icon: "monitor",
+        title: "G-Sync/FreeSync aj v hrách, ktoré ho nepodporujú",
+        about: "Premenlivá obnovovacia frekvencia aj pre hry v okne, ktoré ju samy nezapnú. Zmysel má len s monitorom s G-Sync alebo FreeSync: obraz sa netrhá a netreba V-Sync.",
+        effect: "small",
+        category: "games",
+        admin: false,
+        restart: "",
+        only_if_exists: false,
+        ops: &[Op::Field { key: DX_USER, name: "DirectXUserGlobalSettings", field: "VRROptimizeEnable", on: "1", off: "0" }],
+    },
+    Tweak {
+        key: "sticky_keys",
+        icon: "keyboard",
+        title: "Vypnúť skratky, ktoré vyhadzujú z hry",
+        about: "Päťkrát Shift alebo dlho podržaný Shift otvorí okno Jedným prstom a Filtrovanie klávesov a hra sa minimalizuje. Vypne len tieto skratky, funkcie ostanú v Nastaveniach.",
+        effect: "small",
+        category: "games",
+        admin: false,
+        restart: "logoff",
+        only_if_exists: false,
+        ops: &[
+            reg(r"HKCU\Control Panel\Accessibility\StickyKeys", "Flags", "REG_SZ", Some("506"), Some("510")),
+            reg(r"HKCU\Control Panel\Accessibility\Keyboard Response", "Flags", "REG_SZ", Some("122"), Some("126")),
+            reg(r"HKCU\Control Panel\Accessibility\ToggleKeys", "Flags", "REG_SZ", Some("58"), Some("62")),
+        ],
     },
     Tweak {
         key: "mouse_accel",
@@ -525,6 +569,11 @@ pub fn commands(t: &Tweak, enable: bool) -> Vec<Cmd> {
                     },
                 },
             },
+            Op::Field { key, name, field, on, off } => Cmd {
+                exe: "regfield",
+                args: vec![(*key).into(), (*name).into(), (*field).into(), if enable { *on } else { *off }.into()],
+                ignore_err: false,
+            },
             Op::PowerPlan => Cmd {
                 exe: "powercfg",
                 args: vec![
@@ -581,6 +630,10 @@ pub fn states(read: impl Fn(&str, &str) -> Option<String>, power: Option<String>
                             _ => false,
                         };
                         on &= matches;
+                    }
+                    Op::Field { key, name, field, on: want, .. } => {
+                        let raw = read(key, name).unwrap_or_default();
+                        on &= crate::regw::field_value(&raw, field) == Some(*want);
                     }
                     Op::PowerPlan => {
                         let p = power.clone().unwrap_or_default();
@@ -647,6 +700,9 @@ mod tests {
             assert!(!commands(t, true).is_empty(), "{}", t.key);
             assert!(!commands(t, false).is_empty(), "{}", t.key);
             for op in t.ops {
+                if let Op::Field { key, .. } = op {
+                    assert!(key.starts_with("HKCU\\"), "{}", t.key);
+                }
                 if let Op::Reg(r) = op {
                     assert!(r.on.is_some() || r.off.is_some(), "{} has no state", t.key);
                     assert!(r.key.starts_with("HKCU\\") || (r.key.starts_with("HKLM\\") && t.admin), "{} needs admin flag", t.key);
@@ -695,6 +751,7 @@ mod tests {
         assert!(get("power_plan").on);
         assert!(!get("startup_delay").on);
         assert!(!get("hags").available);
+        assert!(!get("windowed_opt").on);
         // Absent value: Windows treats game mode as on.
         assert!(get("game_mode").on);
     }

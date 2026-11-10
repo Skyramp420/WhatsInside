@@ -505,6 +505,12 @@ mod platform {
                 }
                 for c in cmds {
                     // Registry changes go through the API (reg.exe is blocked for some keys).
+                    if c.exe == "regfield" {
+                        match crate::regw::set_field(&c.args[0], &c.args[1], &c.args[2], &c.args[3]) {
+                            Ok(()) => continue,
+                            Err(e) => return Err(e),
+                        }
+                    }
                     if c.exe == "reg" {
                         if let Some(op) = crate::regw::parse(&c.args) {
                             match crate::regw::run(&op) {

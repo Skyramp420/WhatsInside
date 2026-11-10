@@ -341,6 +341,8 @@ pub struct Facts {
     pub hvci: Option<bool>,
     /// Personal folders that OneDrive took over ("Plocha", "Dokumenty", …).
     pub onedrive_folders: Vec<String>,
+    /// The page file was turned off by hand. Games then crash when RAM runs out.
+    pub pagefile_off: bool,
 }
 
 /// Which user folders point into OneDrive, from `User Shell Folders`.
@@ -465,7 +467,9 @@ mod platform {
         );
         let shell = reg(r"HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders", &[]);
         let shell_vals: Vec<RegValue> = shell.into_iter().flat_map(|(_, v)| v).collect();
+        let mm = reg(r"HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management", &["/v", "PagingFiles"]);
         Facts {
+            pagefile_off: value(&mm, "PagingFiles").map(|v| v.trim().is_empty()).unwrap_or(false),
             onedrive_folders: onedrive_folders(&shell_vals),
             has_battery,
             hvci: value(&hvci, "Enabled").and_then(reg_number).map(|v| v != 0),

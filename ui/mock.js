@@ -2,6 +2,7 @@
 // Never used inside the app (window.__TAURI__ exists there).
 (function () {
   if (window.__TAURI__) return;
+  window.MOCK_IDLE_MS = location.search.includes('fast') ? 90 : 2000;
   const GB = 1 << 30, MB = 1 << 20;
   let scanStart = 0, scanning = false, done = false, snapN = 0;
 
@@ -110,6 +111,9 @@
     T('game_mode', 'Herný režim', 'Počas hry Windows odkladá aktualizácie a dáva hre prednosť. Na dnešných PC neškodí, odporúčam mať zapnutý.', 'small', 'games', false, '', true, 'game'),
     T('hags', 'Hardvérové plánovanie GPU (HAGS)', 'Grafika si sama plánuje prácu, čo trochu znižuje oneskorenie. Na NVIDIA RTX 40 a novších ho potrebuje Frame Generation (DLSS 3 a 4).', 'small', 'games', true, 'reboot', false, 'gpu'),
     T('hvci_off', 'Vypnúť integritu pamäte (HVCI)', 'Bezpečnostná funkcia Windowsu, ktorá v hrách berie zhruba 5 % výkonu, na starších procesoroch aj viac. Vypnutím sa PC stáva o niečo zraniteľnejším.', 'big', 'games', true, 'reboot', false, 'shield'),
+    T('windowed_opt', 'Optimalizácie pre hry v okne', 'Staršie hry (DirectX 10 a 11) v okne alebo v okne bez okrajov majú vyššie oneskorenie než na celej obrazovke. Windows 11 ich vie prepnúť na novší spôsob vykresľovania: nižšia odozva a funguje v nich Auto HDR aj premenlivá obnovovacia frekvencia.', 'big', 'games', false, '', false, 'monitor'),
+    T('vrr_windowed', 'G-Sync/FreeSync aj v hrách, ktoré ho nepodporujú', 'Premenlivá obnovovacia frekvencia aj pre hry v okne, ktoré ju samy nezapnú. Zmysel má len s monitorom s G-Sync alebo FreeSync.', 'small', 'games', false, '', false, 'monitor'),
+    T('sticky_keys', 'Vypnúť skratky, ktoré vyhadzujú z hry', 'Päťkrát Shift alebo dlho podržaný Shift otvorí okno Jedným prstom a Filtrovanie klávesov a hra sa minimalizuje.', 'small', 'games', false, 'logoff', false, 'keyboard'),
     T('mouse_accel', 'Vypnúť zrýchlenie myši', 'Kurzor sa posunie o rovnaký kus podľa toho, kam myšou pohneš, nie podľa toho, ako rýchlo.', 'small', 'games', false, 'logoff', false, 'mouse'),
     T('background_apps', 'Zakázať appkám zo Storu beh na pozadí', 'Appky z Microsoft Store nebudú bežať na pozadí a ich upozornenia môžu chodiť neskôr.', 'small', 'background', false, '', false, 'app'),
     T('edge_boost', 'Edge sa neprednačítava a po zavretí nebeží', 'Edge sa spúšťa už so štartom Windowsu a beží aj po zavretí okna.', 'small', 'background', true, '', false, 'globe'),
@@ -278,6 +282,9 @@
           { path: 'C:\\Users\\Alex\\Downloads', before: 52 * GB, after: 38 * GB, delta: -14 * GB },
         ] };
         case 'storage_clean': return args.items.map((it) => { const i = mockCaches.findIndex((c) => c.path === it.path); const f = i >= 0 ? mockCaches[i].size : 3 * GB; if (i >= 0) mockCaches.splice(i, 1); mockChanges.push({ at: Date.now() / 1000, id: (it.kind === 'cache' ? 'clean:' : it.kind === 'bin' ? 'bin' : 'trash:') + it.path, name: it.label, toggle: null, enabled: false, undone: false, detail: (it.kind === 'trash' ? 'Do Koša · ' : 'Uvoľnené ') + (f / GB).toFixed(1).replace('.', ',') + ' GB' }); return { ok: true, error: null, elevated: false, freed: f }; });
+        case 'store_get': return localStorage.getItem('store:' + args.key);
+        case 'store_set': localStorage.setItem('store:' + args.key, args.value); return null;
+        case 'tune_watch': return !!args.since;
         case 'tweaks_list': return mockTweaks.map((t) => ({ ...t }));
         case 'save_card': return 'C:\\Users\\Alex\\Pictures\\WhatsInside\\WhatsInside-PC-1760900000.png';
         case 'procs_snapshot': return procs();

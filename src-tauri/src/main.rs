@@ -2,7 +2,9 @@
 //!
 //! Changes happen only when the user asks, are reversible and logged (see
 //! `actions`). When the window is closed nothing keeps running: no service,
-//! no tray icon, no background thread.
+//! no tray icon, no background thread. The one exception is asked for by
+//! the user: while a tuning step is being tested (`watch`), the app stays in
+//! the tray and checks the event log for hardware errors once a minute.
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 #![cfg_attr(not(windows), allow(dead_code))]
@@ -26,6 +28,7 @@ mod storage;
 mod system;
 mod tweaks;
 mod update;
+mod watch;
 
 use std::sync::Mutex;
 use tauri::State;
@@ -50,6 +53,99 @@ async fn autostart_list() -> Vec<autostart::Item> {
 #[tauri::command]
 async fn actions_apply(actions: Vec<actions::Action>, restore: Option<bool>) -> Vec<actions::Outcome> {
     actions::apply_with(actions, restore.unwrap_or(false))
+}
+
+fn show_main(app: &tauri::AppHandle) {
+    use tauri::Manager;
+    if let Some(w) = app.get_webview_window("main") {
+        let _ = w.unminimize();
+        let _ = w.show();
+        let _ = w.set_focus();
+    }
+}
+
+fn notify(app: &tauri::AppHandle, title: &str, body: &str) {
+    use tauri_plugin_notification::NotificationExt;
+    let _ = app.notification().builder().title(title).body(body).show();
+}
+
+fn tray_on(app: &tauri::AppHandle) -> tauri::Result<()> {
+    use tauri::menu::{Menu, MenuItem};
+    use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
+    if app.tray_by_id("tune").is_some() {
+        return Ok(());
+    }
+    let show = MenuItem::with_id(app, "show", "Otvoriť WhatsInside", true, None::<&str>)?;
+    let quit = MenuItem::with_id(app, "quit", "Zavrieť (stráženie sa preruší)", true, None::<&str>)?;
+    let menu = Menu::with_items(app, &[&show, &quit])?;
+    let mut b = TrayIconBuilder::with_id("tune")
+        .tooltip("WhatsInside stráži stabilitu počas ladenia")
+        .menu(&menu)
+        .show_menu_on_left_click(false)
+        .on_menu_event(|app, e| match e.id.as_ref() {
+            "show" => show_main(app),
+            "quit" => app.exit(0),
+            _ => {}
+        })
+        .on_tray_icon_event(|tray, e| {
+            if let TrayIconEvent::Click { button: MouseButton::Left, button_state: MouseButtonState::Up, .. } = e {
+                show_main(tray.app_handle());
+            }
+        });
+    if let Some(icon) = app.default_window_icon() {
+        b = b.icon(icon.clone());
+    }
+    b.build(app)?;
+    Ok(())
+}
+
+/// Starts (`since` = when the tuning step began) or stops the hardware-error watch.
+#[tauri::command]
+async fn tune_watch(app: tauri::AppHandle, since: Option<i64>) -> bool {
+    use tauri::Emitter;
+    match since {
+        Some(t) if t > 0 => {
+            let _ = tray_on(&app);
+            let handle = app.clone();
+            watch::start(t, move |alerts| {
+                let (title, body) = watch::message(&alerts);
+                notify(&handle, title, &body);
+                let _ = handle.emit("tune-alert", &alerts);
+            });
+            true
+        }
+        _ => {
+            watch::stop();
+            let _ = app.remove_tray_by_id("tune");
+            false
+        }
+    }
+}
+
+fn store_path(key: &str) -> Option<std::path::PathBuf> {
+    if key.is_empty() || !key.chars().all(|c| c.is_ascii_lowercase() || c == '_') {
+        return None;
+    }
+    let dir = std::env::var("LOCALAPPDATA").ok().map(|d| std::path::PathBuf::from(d).join("WhatsInside"))?;
+    Some(dir.join(format!("{key}.json")))
+}
+
+/// Small JSON documents the UI keeps (tuning journal, system measurements).
+#[tauri::command]
+async fn store_get(key: String) -> Option<String> {
+    std::fs::read_to_string(store_path(&key)?).ok()
+}
+
+#[tauri::command]
+async fn store_set(key: String, value: String) -> Result<(), String> {
+    let p = store_path(&key).ok_or("Neplatný kľúč.")?;
+    if value.len() > 512 * 1024 {
+        return Err("Príliš veľké.".into());
+    }
+    if let Some(d) = p.parent() {
+        std::fs::create_dir_all(d).map_err(|e| e.to_string())?;
+    }
+    std::fs::write(p, value).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -466,6 +562,20 @@ fn main() {
         return;
     }
     tauri::Builder::default()
+        .plugin(tauri_plugin_notification::init())
+        .on_window_event(|w, e| {
+            // While a tuning step is being watched, closing the window hides it to the tray.
+            if let tauri::WindowEvent::CloseRequested { api, .. } = e {
+                if watch::active() {
+                    api.prevent_close();
+                    let _ = w.hide();
+                    if watch::first_hide() {
+                        use tauri::Manager;
+                        notify(w.app_handle(), "WhatsInside stráži ďalej", "Počas ladenia ostávam v lište pri hodinách a ozvem sa, ak Windows zachytí chybu hardvéru.");
+                    }
+                }
+            }
+        })
         .manage(AppState::default())
         .invoke_handler(tauri::generate_handler![
             procs_snapshot,
@@ -508,6 +618,9 @@ fn main() {
             games_list,
             appx_list,
             shader_caches,
+            tune_watch,
+            store_get,
+            store_set,
         ])
         .run(tauri::generate_context!())
         .expect("WhatsInside sa nepodarilo spustiť");
@@ -515,6 +628,13 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn store_keys_stay_inside_the_data_folder() {
+        assert!(super::store_path("../evil").is_none());
+        assert!(super::store_path("").is_none());
+        assert!(super::store_path("Tune").is_none());
+    }
+
     #[test]
     fn only_whole_drives_go_fast() {
         assert_eq!(super::drive_letter("C:\\"), Some('C'));

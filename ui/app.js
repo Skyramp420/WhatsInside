@@ -81,6 +81,8 @@ const ICON = {
   exe: '<svg viewBox="0 0 16 16"><rect x="1.8" y="2.5" width="12.4" height="11" rx="1.8"/><path d="M1.8 5.5h12.4M4.5 8.5l2 1.5-2 1.5M8 11.5h3"/></svg>',
   gear: '<svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="2.2"/><path d="M8 1.8v1.8M8 12.4v1.8M1.8 8h1.8M12.4 8h1.8M3.6 3.6l1.3 1.3M11.1 11.1l1.3 1.3M3.6 12.4l1.3-1.3M11.1 4.9l1.3-1.3"/></svg>',
   doc: '<svg viewBox="0 0 16 16"><path d="M4 1.8h5l3 3v8.4c0 .6-.4 1-1 1H4c-.6 0-1-.4-1-1V2.8c0-.6.4-1 1-1z"/><path d="M5.5 8h5M5.5 10.5h5M5.5 5.5h2"/></svg>',
+  keyboard: '<svg viewBox="0 0 16 16"><rect x="1.5" y="4" width="13" height="8.5" rx="1.8"/><path d="M4 6.6h.01M6.6 6.6h.01M9.3 6.6h.01M12 6.6h.01M4 9.8h.01M12 9.8h.01M6.3 9.8h3.4"/></svg>',
+  chev: '<svg viewBox="0 0 16 16"><path d="M4 6l4 4 4-4"/></svg>',
   user: '<svg viewBox="0 0 16 16"><circle cx="8" cy="5.5" r="2.8"/><path d="M2.8 14c.6-2.7 2.7-4.3 5.2-4.3s4.6 1.6 5.2 4.3"/></svg>',
 };
 const VERDICT = {
@@ -197,7 +199,9 @@ function setStatus(title, text, dot = 'mint', progress = null) {
   bar.hidden = progress === null;
   if (progress !== null) $('i', bar).style.width = `${Math.round(progress * 100)}%`;
 }
-const idleStatus = () => setStatus('Pripravený', 'Nič nemením bez opýtania a všetko sa dá vrátiť. Keď ma zavrieš, nebeží nič.');
+const idleStatus = () => (typeof tn !== 'undefined' && tn.sess
+  ? setStatus('Strážim ladenie', 'Kým testuješ krok, ostávam v lište pri hodinách a sledujem chyby hardvéru. Inak nebeží nič.', 'amber')
+  : setStatus('Pripravený', 'Nič nemením bez opýtania a všetko sa dá vrátiť. Keď ma zavrieš, nebeží nič.'));
 
 /* ---------------------------------------------------------- navigation */
 const views = {};
@@ -1195,6 +1199,11 @@ function hwChecks(specs, displays, facts) {
         steps: [`Aktualizuj cez ${where}.`] });
     } else ok.push(`Ovládač grafiky je aktuálny (${g.driver_date.replace(/-/g, '. ')})`);
   }
+  if (facts?.pagefile_off) {
+    tips.push({ level: 'high', icon: 'ram', key: 'pagefile', title: 'Stránkovací súbor je vypnutý',
+      text: 'Niekto ho vypol ako „optimalizáciu“. Keď dôjde pamäť, hry a appky bez neho padajú alebo hlásia nedostatok pamäte, aj keď máš RAM dosť. Výkon tým nezískaš.',
+      steps: ['Štart → napíš „rozšírené nastavenia systému“ → Výkon → Nastavenie → Spresnenie → Virtuálna pamäť → Zmeniť.', 'Zaškrtni „Automaticky spravovať veľkosť stránkovacieho súboru“.', 'Potvrď a reštartuj.'] });
+  }
   return { tips, ok };
 }
 
@@ -1205,7 +1214,7 @@ const TWEAK_CATS = [
   ['looks', 'Pre slabšie PC'],
 ];
 const TWEAK_ICONS = { responsive: 'bolt', games: 'game', background: 'layers', looks: 'sparkle' };
-const RECOMMENDED_TWEAKS = ['startup_delay', 'menu_delay', 'game_mode', 'hags', 'tips'];
+const RECOMMENDED_TWEAKS = ['startup_delay', 'menu_delay', 'game_mode', 'hags', 'tips', 'windowed_opt'];
 const PLACEBO = [
   ['Vypnutie Nagleho algoritmu a TCP úpravy', 'Hry posielajú dáta po svojom (väčšinou cez UDP), na ping to nemá vplyv.'],
   ['SystemResponsiveness a NetworkThrottlingIndex', 'Týkajú sa len starej služby na prehrávanie médií. Hry z toho nič nemajú.'],
@@ -1229,21 +1238,34 @@ async function loadPerf() {
 }
 let perfFacts = null;
 
-function tipCards(tips, store) {
+function tipCards(tips, store, opts = {}) {
   const level = { high: ['rec', 'Dôležité'], mid: ['amber', 'Odporúčam'], low: ['blue', 'Tip'] };
   return `<div class="tips">${tips.map((t, i) => {
     if (t.action) store[i] = t.action.run;
-    return `<div class="card tipcard land lvl-${t.level}" style="--i:${i}">
+    const more = !!(t.list || t.steps);
+    return `<div class="card tipcard land lvl-${t.level}${more ? ' more' : ''}${more && opts.open ? ' open' : ''}" style="--i:${Math.min(i, 12)}">
       <div class="ti">${ICON[t.icon] || ICON.check}</div>
       <div class="tb">
         <div class="tt"><span>${esc(t.title)}</span><span class="badge lv-${level[t.level][0]}">${level[t.level][1]}</span></div>
         <div class="tx">${esc(t.text)}</div>
-        ${t.list ? `<div class="tl">${t.list.map(([a, b]) => `<div><span>${esc(a)}</span><span class="num">${esc(b)}</span></div>`).join('')}</div>` : ''}
-        ${t.steps ? `<ol class="ts">${t.steps.map((s) => `<li>${esc(s)}</li>`).join('')}</ol>` : ''}
+        ${more ? `<div class="tmore"><div>
+          ${t.list ? `<div class="tl">${t.list.map(([a, b]) => `<div><span>${esc(a)}</span><span class="num">${esc(b)}</span></div>`).join('')}</div>` : ''}
+          ${t.steps ? `<ol class="ts">${t.steps.map((s) => `<li>${esc(s)}</li>`).join('')}</ol>` : ''}
+        </div></div>` : ''}
       </div>
-      ${t.action ? `<button class="btn small" data-a="${i}">${esc(t.action.label)}${ICON.arrow}</button>` : ''}
+      <div class="tside">${t.action ? `<button class="btn small" data-a="${i}">${esc(t.action.label)}${ICON.arrow}</button>` : ''}${more ? `<button class="btn icon ghost tchev" title="Ako na to" aria-expanded="${!!opts.open}">${ICON.chev}</button>` : ''}</div>
     </div>`;
   }).join('')}</div>`;
+}
+/** Cards with steps open and close when clicked anywhere but a button. */
+function bindTipCards(root) {
+  $$('.tipcard.more', root).forEach((c) => {
+    c.onclick = (e) => {
+      if (e.target.closest('button:not(.tchev)') || getSelection().toString()) return;
+      const open = c.classList.toggle('open');
+      $('.tchev', c)?.setAttribute('aria-expanded', open);
+    };
+  });
 }
 
 const tweakBusy = new Set();
@@ -1271,6 +1293,7 @@ function renderPerf() {
       <div class="plist">${PLACEBO.map(([a, b]) => `<div><b>${esc(a)}</b><span>${esc(b)}</span></div>`).join('')}</div></details>`;
 
   $$('#perfBody [data-a]').forEach((b) => (b.onclick = () => actions[+b.dataset.a]?.()));
+  bindTipCards($('#perfBody'));
   bindTweakRows($('#perfBody'));
   if ($('#twRec')) $('#twRec').onclick = () => {
     const m = modal(`<h3>Zapnúť odporúčané úpravy</h3>
@@ -1783,6 +1806,7 @@ function renderWindows() {
       `<div class="pact"><span id="appxSum"></span><button class="btn danger" id="appxGo">Odinštalovať vybrané</button></div>`}</div>`;
 
   $$('#winBody [data-a]').forEach((b) => (b.onclick = () => actions[+b.dataset.a]?.()));
+  bindTipCards($('#winBody'));
   bindTweakRows($('#winBody'));
   bindTips($('#winBody'));
   if ($('#rsExplorer')) $('#rsExplorer').onclick = async () => {
@@ -1954,7 +1978,7 @@ function renderStability() {
       ${stat('Pády appiek', sk((r?.apps || []).reduce((a, x) => a + x.count, 0)))}
     </div>
     <div class="hint">Za posledných ${r?.days || 30} dní, z denníka udalostí Windowsu.</div>
-    ${tips.length ? tipCards(tips, actions) : `<div class="card empty">${ICON.check}Žiadne modré obrazovky, hardvérové chyby ani problémy s diskom. Systém je stabilný.</div>`}
+    ${tips.length ? tipCards(tips, actions, { open: true }) : `<div class="card empty">${ICON.check}Žiadne modré obrazovky, hardvérové chyby ani problémy s diskom. Systém je stabilný.</div>`}
 
     ${r?.apps.length ? `<h2>Pády a zamrznutia appiek</h2><div class="card list">${r.apps.map((a) => `<div class="arow withicon crow2"><span class="ricon s-${a.count > 2 ? 'rec' : 'amber'}">${ICON.x}</span>
       <div style="min-width:0"><div class="t">${esc(a.app)}${a.hint ? `<span class="badge maybe">${esc(a.hint)}</span>` : ''}</div>
@@ -1979,6 +2003,7 @@ function renderStability() {
     ${sb.deep ? `<h2>Ako dlho štartuje PC</h2><div class="card boot">${bootChart(sb.deep.boots)}</div>${slowList(sb.deep.slow || [])}` : ''}
   `;
   $$('#stabBody [data-a]').forEach((b) => (b.onclick = () => actions[+b.dataset.a]?.()));
+  bindTipCards($('#stabBody'));
   $('#deepGo').onclick = runDeep;
   $$('#stabBody .toauto2').forEach((b) => (b.onclick = () => { su.q = b.dataset.q.toLowerCase(); su.kind = 'all'; $('#startupSearch').value = b.dataset.q; setView('startup'); }));
   if ($('#toStartup')) $('#toStartup').onclick = () => setView('startup');
@@ -2030,7 +2055,7 @@ async function restoreCard() {
 // WhatsInside never sets clocks or voltages itself. It says what to change
 // where, then checks the result: FPS before/after, temperatures, and
 // whether WHEA errors, blue screens or driver resets showed up since.
-const tn = { report: null };
+const tn = { sess: null, log: [], live: [], loaded: false };
 
 function cpuInfo(name = '') {
   const n = name.replace(/\((R|TM)\)/gi, '');
@@ -2100,23 +2125,112 @@ function tuneSteps() {
   return out;
 }
 
-function tuneSession() {
-  try { return JSON.parse(localStorageGet('tuneSession') || 'null'); } catch { return null; }
+/* ---------------------------------------------------------- small stored documents */
+async function storeGet(key, fallback) {
+  try { const s = await invoke('store_get', { key }); return s ? JSON.parse(s) : fallback; } catch { return fallback; }
+}
+function storeSet(key, value) { return invoke('store_set', { key, value: JSON.stringify(value) }).catch(() => {}); }
+
+/** Numbers that count up when they appear: <span data-n="12.5" data-d="1">. */
+function countUp(root) {
+  const calm = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  $$('[data-n]', root).forEach((el) => {
+    const to = +el.dataset.n, d = +(el.dataset.d || 0), t0 = performance.now(), dur = 650;
+    if (calm || !isFinite(to)) { el.textContent = sk(to, d); return; }
+    const step = (t) => {
+      const p = Math.min(1, (t - t0) / dur), e = 1 - (1 - p) ** 3;
+      el.textContent = sk(to * e, d);
+      if (p < 1 && el.isConnected) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  });
 }
 
-function tuneCheck(sess) {
+/* ---------------------------------------------------------- tuning: session, live watch, journal */
+const PARTS = { cpu: ['Procesor', 'cpu'], ram: ['Pamäť', 'ram'], gpu: ['Grafika', 'gpu'], other: ['Iné', 'gear'] };
+const TUNE_DAYS = 2; // how long a step should hold before we call it stable
+const nowSec = () => Math.floor(Date.now() / 1000);
+
+function tuneSave() { storeSet('tune', { sess: tn.sess, log: tn.log }); }
+
+/** Loaded once at startup, so an unfinished step keeps being watched after a restart. */
+async function tuneInit() {
+  const saved = await storeGet('tune', null);
+  if (saved) { tn.sess = saved.sess || null; tn.log = saved.log || []; }
+  else {
+    // v0.9 kept the session in the webview's storage.
+    try { const old = JSON.parse(localStorageGet('tuneSession') || 'null'); if (old?.at) { tn.sess = { id: old.at, part: 'other', ...old }; tuneSave(); } } catch {}
+  }
+  tn.loaded = true;
+  if (tn.sess) invoke('tune_watch', { since: tn.sess.at }).catch(() => {});
+  idleStatus();
+  T?.event?.listen?.('tune-alert', async (e) => {
+    tn.live = (tn.live || []).concat(e.payload || []);
+    sb.report = await invoke('stability_report').catch(() => sb.report);
+    toast('Windows práve zachytil chybu hardvéru. Pozri Ladenie.', 'err');
+    if (current === 'tune') renderTune();
+    $('#tuneCount').textContent = '!';
+  });
+}
+
+function tuneCheck(sess, until = Infinity) {
   const r = sb.report;
   if (!sess || !r) return null;
   const t0 = sess.at;
-  const after = (arr) => (arr || []).filter((t) => t >= t0).length;
-  const bs = (r.blue_screens || []).filter((b) => b.time >= t0).length;
-  const whea = after(r.whea_times), tdr = after(r.gpu_resets), off = after(r.sudden_offs);
-  const crashes = (r.apps || []).filter((a) => a.last >= t0 && a.hint && /grafiky|DirectX/.test(a.hint)).length;
-  const days = Math.max(0, (Date.now() / 1000 - t0) / 86400);
+  const inRange = (t) => t >= t0 && t <= until;
+  const count = (arr) => (arr || []).filter(inRange).length;
+  const bs = (r.blue_screens || []).filter((b) => inRange(b.time)).length;
+  const whea = count(r.whea_times), tdr = count(r.gpu_resets), off = count(r.sudden_offs);
+  const crashes = (r.apps || []).filter((a) => inRange(a.last) && a.hint && /grafiky|DirectX/.test(a.hint)).length;
+  const days = Math.max(0, (Math.min(until, Date.now() / 1000) - t0) / 86400);
   const runs = gm.runs || [];
   const before = [...runs].reverse().find((x) => x.id / 1000 < t0);
-  const afterRun = before ? [...runs].reverse().find((x) => x.id / 1000 >= t0 && x.exe === before.exe) : null;
+  const afterRun = before ? [...runs].reverse().find((x) => inRange(x.id / 1000) && x.exe === before.exe) : null;
   return { bs, whea, tdr, off, crashes, days, before, afterRun, bad: bs + whea + tdr + crashes > 0 };
+}
+
+function tuneStart(part, note) {
+  tn.sess = { id: Date.now(), at: nowSec(), part, note };
+  tn.live = [];
+  tuneSave();
+  invoke('tune_watch', { since: tn.sess.at }).catch(() => {});
+  idleStatus();
+}
+
+/** Closes the current step and writes its result into the journal. */
+function tuneFinish() {
+  const s = tn.sess;
+  if (!s) return;
+  const end = nowSec(), c = tuneCheck(s, end) || { bs: 0, whea: 0, tdr: 0, crashes: 0, off: 0, days: (end - s.at) / 86400 };
+  tn.log.unshift({
+    ...s, end, days: c.days, bs: c.bs, whea: c.whea, tdr: c.tdr, crashes: c.crashes,
+    verdict: c.bad ? 'bad' : c.days >= TUNE_DAYS ? 'ok' : 'short',
+    fps: c.before && c.afterRun ? { exe: c.before.exe, a: c.before.avg_fps, b: c.afterRun.avg_fps, ta: c.before.gpu?.temp_max ?? null, tb: c.afterRun.gpu?.temp_max ?? null } : null,
+  });
+  tn.log = tn.log.slice(0, 60);
+  tn.sess = null;
+  tn.live = [];
+  tuneSave();
+  invoke('tune_watch', { since: null }).catch(() => {});
+  $('#tuneCount').textContent = '';
+  idleStatus();
+}
+
+const dur = (days) => (days >= 1 ? `${sk(days, days < 10 ? 1 : 0)} ${plural(Math.round(days), 'deň', 'dni', 'dní')}` : days * 24 >= 1 ? `${sk(days * 24, 0)} h` : `${sk(Math.max(1, days * 1440), 0)} min`);
+const pct = (a, b) => (b ? `${a >= b ? '+' : '−'}${sk(Math.abs(((a - b) / b) * 100), 1)} %` : '');
+
+function journalRow(e, i) {
+  const [label, ic] = PARTS[e.part] || PARTS.other;
+  const v = { ok: ['mint', 'Stabilné', 'check'], bad: ['rec', 'Nestabilné', 'warn'], short: ['amber', 'Krátky test', 'clock'] }[e.verdict];
+  const errs = [[e.bs, 'modrá obrazovka', 'modré obrazovky', 'modrých obrazoviek'], [e.whea, 'chyba hardvéru', 'chyby hardvéru', 'chýb hardvéru'], [e.tdr, 'reset grafiky', 'resety grafiky', 'resetov grafiky'], [e.crashes, 'pád hry', 'pády hier', 'pádov hier']]
+    .filter(([n]) => n).map(([n, a, b, c]) => `${n} ${plural(n, a, b, c)}`);
+  return `<div class="jrow land" style="--i:${i}">
+    <span class="jdot j-${v[0]}">${ICON[v[2]]}</span>
+    <div class="jmain"><div class="t">${esc(e.note || label)}<span class="badge maybe">${ICON[ic]}${label}</span><span class="badge lv-${v[0]}">${v[1]}</span></div>
+      <div class="a">${fmtDate(e.at)} · test trval ${dur(e.days)}${errs.length ? ` · <b class="bad">${errs.join(', ')}</b>` : ' · bez chýb'}</div></div>
+    <div class="jfps">${e.fps ? `<b class="${e.fps.b >= e.fps.a ? 'up' : 'down'}">${pct(e.fps.b, e.fps.a)} FPS</b><span>${sk(e.fps.a, 0)} → ${sk(e.fps.b, 0)}${e.fps.ta != null && e.fps.tb != null ? ` · ${sk(e.fps.ta, 0)} → ${sk(e.fps.tb, 0)} °C` : ''}</span>` : ''}</div>
+    <button class="btn icon ghost jdel" data-id="${e.id}" title="Zmazať z denníka">${ICON.x}</button>
+  </div>`;
 }
 
 async function loadTune() {
@@ -2126,87 +2240,189 @@ async function loadTune() {
   renderTune();
 }
 
+function ring(p, state) {
+  const C = 2 * Math.PI * 21;
+  return `<svg class="ring r-${state}" viewBox="0 0 52 52"><circle class="rt" cx="26" cy="26" r="21"/><circle class="rv" cx="26" cy="26" r="21" stroke-dasharray="${C}" style="--from:${C};--to:${C * (1 - Math.min(1, p))}"/>
+    ${state === 'bad' ? '<path class="rm" d="M26 17v11M26 33.5h.01"/>' : p >= 1 ? '<path class="rm draw" d="M18.5 26.5l5 5 10-11"/>' : ''}</svg>`;
+}
+
 function renderTune() {
   const cpu = cpuInfo(specs?.cpu), gpu = gpuCaps();
-  const sess = tuneSession();
+  const sess = tn.sess;
   const c = tuneCheck(sess);
   const actions = [];
   const steps = tuneSteps();
-  const delta = (a, b) => (b ? `${a >= b ? '+' : ''}${sk(((a - b) / b) * 100, 1)} %` : '');
+  const state = c?.bad ? 'bad' : c && c.days >= TUNE_DAYS ? 'ok' : 'run';
+  const [plabel, picon] = PARTS[sess?.part] || PARTS.other;
+  const cell = (k, n) => `<div class="${n ? 'bad' : ''}"><span class="k">${k}</span><span class="v num" data-n="${n || 0}">0</span></div>`;
   $('#tuneBody').innerHTML = `
-    <div class="card info"><svg viewBox="0 0 16 16"><path d="M8 1.6l5 2v4c0 3.2-2.1 5.7-5 6.8-2.9-1.1-5-3.6-5-6.8v-4z"/></svg>
-      <p><b>Takty ani napätia za teba nemením.</b> To patrí do BIOSu a do nástrojov výrobcu. Poviem ti, čo a kde nastaviť pre tvoje komponenty, a potom overím, či je to stabilné a či to niečo prinieslo.</p></div>
     <div class="chips2 build">${cpu.name ? `<span class="badge maybe">${ICON.cpu}${esc(cpu.name)}</span>` : ''}${gpu.name ? `<span class="badge maybe">${ICON.gpu}${esc(gpu.name)}</span>` : ''}${(specs?.ram_modules || []).length ? `<span class="badge maybe">${ICON.ram}${sk(specs.ram_modules.reduce((a, m) => a + m.size_mb, 0) / 1024)} GB ${esc(specs.ram_modules[0].kind || '')} ${sk(specs.ram_modules[0].configured_speed || 0)} MT/s</span>` : ''}</div>
 
-    <h2>Kontrola stability</h2>
-    ${sess ? `<div class="card tunesess ${c?.bad ? 'bad' : 'good'}">
-        <div class="ts-head"><span class="ricon s-${c?.bad ? 'rec' : 'mint'}">${c?.bad ? ICON.warn : ICON.check}</span>
-          <div><b>${c?.bad ? 'Od začiatku ladenia sa objavili chyby' : c && c.days >= 2 ? `Stabilné ${sk(c.days, 0)} dní` : 'Zatiaľ bez chýb'}</b>
-          <span>Ladíš od ${fmtDate(sess.at)}${sess.note ? ` · ${esc(sess.note)}` : ''}</span></div>
-          <button class="btn small" id="tuneEnd">Ukončiť ladenie</button></div>
-        <div class="ts-grid">
-          <div><span class="k">Modré obrazovky</span><span class="v num ${c?.bs ? 'bad' : ''}">${c?.bs ?? 0}</span></div>
-          <div><span class="k">Hardvérové chyby</span><span class="v num ${c?.whea ? 'bad' : ''}">${c?.whea ?? 0}</span></div>
-          <div><span class="k">Resety grafiky</span><span class="v num ${c?.tdr ? 'bad' : ''}">${c?.tdr ?? 0}</span></div>
-          <div><span class="k">Pády hier v ovládači</span><span class="v num ${c?.crashes ? 'bad' : ''}">${c?.crashes ?? 0}</span></div>
-        </div>
-        ${c?.bad ? '<p class="why warn">Posledný krok je nestabilný. Vráť ho o stupeň späť (napätie vyššie, Curve Optimizer bližšie k nule, menej MHz) a skontroluj znova.</p>'
-          : c && c.days < 2 ? '<p class="why">Hraj bežne aspoň 2–3 dni alebo pusti náročnú hru na pol hodinu. Nestabilita sa často ukáže až pri rôznej záťaži.</p>' : '<p class="why">Bez modrých obrazoviek, hardvérových chýb a resetov grafiky. Toto nastavenie vyzerá stabilne.</p>'}
-        ${c?.before ? `<div class="ts-fps">${ICON.game}<span>${esc(c.before.exe)}: pred ${sk(c.before.avg_fps, 0)} FPS${c.afterRun ? ` → po ${sk(c.afterRun.avg_fps, 0)} FPS <b class="${c.afterRun.avg_fps >= c.before.avg_fps ? 'up' : 'down'}">${delta(c.afterRun.avg_fps, c.before.avg_fps)}</b>${c.afterRun.gpu && c.before.gpu ? ` · grafika max ${sk(c.before.gpu.temp_max, 0)} → ${sk(c.afterRun.gpu.temp_max, 0)} °C` : ''}` : ' · zmeraj tú istú hru znova v záložke Hry'}</span></div>`
-          : '<div class="ts-fps">' + ICON.game + '<span>Pred ladením nemáš meranie FPS. Nabudúce najprv zmeraj hru, potom začni ladiť.</span></div>'}
-        <div class="mact"><button class="btn small" id="tuneRefresh">${ICON.restart}Skontrolovať teraz</button><button class="btn small" id="tuneFps">${ICON.game}Zmerať FPS</button></div>
+    ${sess ? `<div class="card tunesess s-${state} land">
+        <div class="ts-head">${ring(state === 'bad' ? 1 : (c?.days || 0) / TUNE_DAYS, state)}
+          <div><b>${state === 'bad' ? 'Tento krok nie je stabilný' : state === 'ok' ? `Stabilné ${dur(c.days)}` : `Testujem: ${dur(c?.days || 0)} bez chýb`}</b>
+          <span>${ICON[picon]}${esc(sess.note || plabel)} · od ${fmtDate(sess.at)}</span></div>
+          <span class="livepill" title="Raz za minútu sa pozriem do denníka Windowsu. Ostávam v lište pri hodinách, aj keď okno zavrieš."><i class="dot ${state === 'bad' ? 'rec' : 'mint'} pulse"></i>Strážim naživo</span></div>
+        <div class="ts-grid">${cell('Modré obrazovky', c?.bs)}${cell('Chyby hardvéru', c?.whea)}${cell('Resety grafiky', c?.tdr)}${cell('Pády hier v ovládači', c?.crashes)}</div>
+        ${state === 'bad' ? '<p class="why warn">Vráť posledný krok o stupeň späť (napätie vyššie, Curve Optimizer bližšie k nule, menej MHz, voľnejšie časovania) a začni nový krok.</p>'
+          : state === 'run' ? `<p class="why">Hraj a pracuj ako bežne. Nestabilita sa často ukáže až pri rôznej záťaži, preto čakám ${TUNE_DAYS} dni. Keď Windows zachytí chybu, hneď ti dám vedieť, aj keď je okno zavreté.</p>`
+            : '<p class="why">Bez modrých obrazoviek, chýb hardvéru a resetov grafiky. Môžeš krok uzavrieť a skúsiť ďalší.</p>'}
+        ${c?.before ? `<div class="ts-fps">${ICON.game}<span>${esc(c.before.exe)}: pred ${sk(c.before.avg_fps, 0)} FPS${c.afterRun ? ` → po ${sk(c.afterRun.avg_fps, 0)} FPS <b class="${c.afterRun.avg_fps >= c.before.avg_fps ? 'up' : 'down'}">${pct(c.afterRun.avg_fps, c.before.avg_fps)}</b>${c.afterRun.gpu && c.before.gpu ? ` · grafika max ${sk(c.before.gpu.temp_max, 0)} → ${sk(c.afterRun.gpu.temp_max, 0)} °C` : ''}` : ' · zmeraj tú istú hru znova, porovnám'}</span></div>`
+          : `<div class="ts-fps">${ICON.game}<span>Pred týmto krokom nemáš meranie FPS, takže neviem povedať, či niečo priniesol.</span></div>`}
+        <div class="mact"><button class="btn small primary" id="tuneEnd">${ICON.check}Uzavrieť krok a zapísať</button><button class="btn small" id="tuneRefresh">${ICON.restart}Skontrolovať teraz</button><button class="btn small" id="tuneFps">${ICON.game}Zmerať FPS</button></div>
       </div>`
-      : `<div class="card tunestart"><div><b>Pred zmenou v BIOSe alebo v Afterburneri klikni na Začínam ladiť.</b>
-        <span>Odvtedy budem sledovať modré obrazovky, hardvérové chyby (WHEA), resety grafiky a pády hier. Ideálne si predtým zmeraj FPS v jednej hre, porovnám ho potom.</span></div>
-        <div class="ts-act"><input id="tuneNote" placeholder="Čo meníš, napr. CO -15" maxlength="60"><button class="btn primary" id="tuneGo">Začínam ladiť</button></div></div>`}
+      : `<div class="card tunestart land">
+        <div class="tsi">${ICON.shield}</div>
+        <div class="tsb"><b>Mením jednu vec a chcem vedieť, či drží</b>
+        <span>Vyber, čo ladíš, napíš si krok a zmeň ho v BIOSe alebo v nástroji výrobcu. Odvtedy strážim modré obrazovky, chyby hardvéru (WHEA) a resety grafiky a výsledok zapíšem do denníka. Takty ani napätia sám nemením.</span>
+        <div class="ts-act"><div class="seg" id="tunePart"><div class="knob"></div>${Object.entries(PARTS).map(([k, [l]], i) => `<button data-k="${k}" class="${i === 0 ? 'on' : ''}">${l}</button>`).join('')}</div>
+          <input id="tuneNote" placeholder="Čo meníš, napr. Curve Optimizer −15" maxlength="60"><button class="btn primary" id="tuneGo">Začínam ladiť</button></div></div></div>`}
 
-    <h2>Čo nastaviť</h2>
-    ${tipCards(steps, actions)}
-    <div class="note">Nič z toho nie je nutné. Najväčší rozdiel urobí XMP/EXPO, undervolt grafiky je hlavne o teplotách a hluku. Pri pretaktovaní vždy meň jednu vec naraz a over ju.</div>`;
-  $$('#tuneBody [data-a]').forEach((b) => (b.onclick = () => actions[+b.dataset.a]?.()));
-  if ($('#tuneGo')) $('#tuneGo').onclick = () => { localStorageSet('tuneSession', JSON.stringify({ at: Math.floor(Date.now() / 1000), note: $('#tuneNote').value.trim() })); renderTune(); toast('Sledujem stabilitu od teraz.'); };
-  if ($('#tuneEnd')) $('#tuneEnd').onclick = () => { localStorageSet('tuneSession', 'null'); renderTune(); };
+    ${tn.log.length ? `<h2>Denník ladenia</h2><div class="card journal">${tn.log.map(journalRow).join('')}</div>` : ''}
+
+    <h2>Čo sa oplatí nastaviť</h2>
+    ${tipCards(steps, actions, { open: !tn.log.length && !sess })}
+    <div class="note">Nič z toho nie je nutné. Najväčší rozdiel urobí XMP/EXPO, undervolt grafiky je hlavne o teplotách a hluku. Vždy meň jednu vec naraz.</div>`;
+  const body = $('#tuneBody');
+  $$('[data-a]', body).forEach((b) => (b.onclick = () => actions[+b.dataset.a]?.()));
+  bindTipCards(body);
+  countUp(body);
+  if ($('#tunePart')) { let part = 'cpu'; seg($('#tunePart'), (v) => (part = v)); requestAnimationFrame(() => placeSeg($('#tunePart')));
+    const go = () => { tuneStart(part, $('#tuneNote').value.trim()); renderTune(); toast('Strážim stabilitu. Zmeň nastavenie a používaj PC ako bežne.'); };
+    $('#tuneGo').onclick = go;
+    $('#tuneNote').onkeydown = (e) => { if (e.key === 'Enter') go(); };
+  }
+  if ($('#tuneEnd')) $('#tuneEnd').onclick = () => { tuneFinish(); renderTune(); toast('Zapísané do denníka'); };
   if ($('#tuneRefresh')) $('#tuneRefresh').onclick = async () => { sb.report = await invoke('stability_report').catch(() => sb.report); renderTune(); toast('Skontrolované'); };
   if ($('#tuneFps')) $('#tuneFps').onclick = () => setView('games');
+  $$('.jdel', body).forEach((b) => (b.onclick = () => { tn.log = tn.log.filter((e) => String(e.id) !== b.dataset.id); tuneSave(); renderTune(); }));
 }
 
 $('#tuneReload').onclick = () => { sb.report = null; loadTune(); };
-views.tune = { enter() { loadTune(); } };
+views.tune = { enter() { $('#tuneCount').textContent = ''; loadTune(); } };
 
-/* ---------------------------------------------------------- idle CPU check */
+/* ---------------------------------------------------------- idle sampling (shared) */
 const idle = { running: false };
-async function idleCheck() {
-  if (idle.running) return;
+/** 30 s of samples while the user keeps their hands off. Returns averages. */
+async function sampleIdle(onTick, N = 15) {
   idle.running = true;
   clearTimeout(pr.timer);
-  const box = $('#idleBox');
-  const N = 15, acc = new Map();
-  let total = 0;
-  const show = (k) => { box.innerHTML = `<div class="card idlecard"><div class="ih"><span class="dot amber pulse"></span><div><b>Nesiahaj na PC, meriam ${N * 2 - k * 2} s</b><span>Sledujem, čo pracuje, keď nič nerobíš.</span></div></div><div class="bar"><i style="width:${(k / N) * 100}%"></i></div></div>`; };
-  show(0);
-  await invoke('procs_snapshot');
-  for (let k = 1; k <= N; k++) {
-    await new Promise((r) => setTimeout(r, 2000));
-    const s = await invoke('procs_snapshot').catch(() => null);
-    if (!s) continue;
-    total += s.cpu_total;
-    for (const g of s.groups) {
-      const a = acc.get(g.key) || { g, cpu: 0, io: 0 };
-      a.cpu += g.cpu; a.io += g.io_bps; a.g = g;
-      acc.set(g.key, a);
+  const acc = new Map();
+  let total = 0, ram = 0, ramTotal = 0, count = 0, got = 0;
+  try {
+    onTick(0, N);
+    await invoke('procs_snapshot');
+    for (let k = 1; k <= N; k++) {
+      await new Promise((r) => setTimeout(r, window.MOCK_IDLE_MS ?? 2000));
+      const s = await invoke('procs_snapshot').catch(() => null);
+      if (s) {
+        got++; total += s.cpu_total; ram += s.ram_used; ramTotal = s.ram_total;
+        count += s.groups.reduce((a, g) => a + g.procs.length, 0);
+        for (const g of s.groups) {
+          const a = acc.get(g.key) || { g, cpu: 0, io: 0 };
+          a.cpu += g.cpu; a.io += g.io_bps; a.g = g;
+          acc.set(g.key, a);
+        }
+      }
+      onTick(k, N);
     }
-    show(k);
+  } finally {
+    idle.running = false;
+    if (current === 'procs') pollProcs();
   }
-  const avg = total / N;
-  const list = [...acc.values()].map((a) => ({ ...a, cpu: a.cpu / N, io: a.io / N })).filter((a) => a.cpu >= 0.3 || a.io > 512 * 1024).sort((a, b) => b.cpu - a.cpu).slice(0, 10);
-  box.innerHTML = `<div class="card idlecard"><div class="ih"><span class="ricon s-${avg > 8 ? 'amber' : 'mint'}">${avg > 8 ? ICON.warn : ICON.check}</span><div>
-      <b>V pokoji procesor pracuje na ${sk(avg, 1)} %</b><span>${avg > 8 ? 'To je viac, než by malo byť. Nižšie je, kto za to môže.' : avg > 3 ? 'V norme, pár vecí ale pracuje stále.' : 'Výborné, na pozadí skoro nič nebeží.'}</span></div>
+  const n = Math.max(1, got);
+  return { cpu: total / n, ram: ram / n, ramTotal, procs: Math.round(count / n), list: [...acc.values()].map((a) => ({ ...a, cpu: a.cpu / n, io: a.io / n })) };
+}
+
+async function idleCheck() {
+  if (idle.running) return;
+  const box = $('#idleBox');
+  const r = await sampleIdle((k, N) => {
+    box.innerHTML = `<div class="card idlecard"><div class="ih"><span class="dot amber pulse"></span><div><b>Nesiahaj na PC, meriam ${(N - k) * 2} s</b><span>Sledujem, čo pracuje, keď nič nerobíš.</span></div></div><div class="bar"><i style="width:${(k / N) * 100}%"></i></div></div>`;
+  });
+  const avg = r.cpu;
+  const list = r.list.filter((a) => a.cpu >= 0.3 || a.io > 512 * 1024).sort((a, b) => b.cpu - a.cpu).slice(0, 10);
+  box.innerHTML = `<div class="card idlecard land"><div class="ih"><span class="ricon s-${avg > 8 ? 'amber' : 'mint'}">${avg > 8 ? ICON.warn : ICON.check}</span><div>
+      <b>V pokoji procesor pracuje na <span data-n="${avg}" data-d="1">0</span> %</b><span>${avg > 8 ? 'To je viac, než by malo byť. Nižšie je, kto za to môže.' : avg > 3 ? 'V norme, pár vecí ale pracuje stále.' : 'Výborné, na pozadí skoro nič nebeží.'}</span></div>
       <button class="btn icon ghost" id="idleClose" title="Zavrieť">${ICON.x}</button></div>
-    ${list.length ? `<div class="ilist">${list.map((a) => { const au = autoOf(a.g); return `<div class="irow"><span class="gicon v-${a.g.verdict}">${ICON[procIcon(a.g)]}</span><span class="in"><b>${esc(a.g.name)}</b>${badge(a.g.verdict)}${au ? '<span class="badge auto">So systémom</span>' : ''}</span><span class="num">${sk(a.cpu, 1)} %</span><span class="num dim">${rate(a.io)}</span></div>`; }).join('')}</div>` : ''}
+    ${list.length ? `<div class="ilist">${list.map((a, i) => { const au = autoOf(a.g); return `<div class="irow land" style="--i:${i}"><span class="gicon v-${a.g.verdict}">${ICON[procIcon(a.g)]}</span><span class="in"><b>${esc(a.g.name)}</b>${badge(a.g.verdict)}${au ? '<span class="badge auto">So systémom</span>' : ''}</span><span class="num">${sk(a.cpu, 1)} %</span><span class="num dim">${rate(a.io)}</span></div>`; }).join('')}</div>` : ''}
     <p class="why">${list.some((a) => a.g.key === 'windows') ? 'Windows občas indexuje, aktualizuje alebo kontroluje Defenderom, to je v poriadku. ' : ''}Appky, ktoré pracujú stále a nepotrebuješ ich, zavri alebo vypni v Po spustení.</p></div>`;
+  countUp(box);
   $('#idleClose').onclick = () => (box.innerHTML = '');
-  idle.running = false;
-  pollProcs();
+}
+
+/* ---------------------------------------------------------- system before / after */
+// A measurement of the things tweaks are supposed to improve, taken the same
+// way each time, so "it feels faster" can be checked against numbers.
+const ms = { base: null, list: [], busy: false, loaded: false };
+const METRICS = [
+  ['cpu', 'Procesor v pokoji', 'cpu', (v) => sk(v, 1), '%', 0.5, 1],
+  ['ram', 'Obsadená pamäť', 'ram', (v) => sk(v / 2 ** 30, 1), 'GB', 0.2 * 2 ** 30, 1],
+  ['procs', 'Bežiace procesy', 'layers', (v) => sk(v), '', 3, 0],
+  ['auto', 'Spúšťa sa s Windowsom', 'power', (v) => sk(v), '', 1, 0],
+  ['boot', 'Štart PC', 'rocket', (v) => sk(v / 1000, 0), 's', 2000, 0],
+];
+const snapLabel = (s) => new Date(s.at * 1000).toLocaleString('sk-SK', { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' });
+
+async function measureInit() {
+  if (ms.loaded) return;
+  const saved = await storeGet('measure', null);
+  if (saved) { ms.base = saved.base || null; ms.list = saved.list || []; }
+  ms.loaded = true;
+}
+
+function renderMeasure(progress = null) {
+  const box = $('#measureBox');
+  if (!box) return;
+  if (progress) {
+    box.innerHTML = `<div class="card mcard measuring"><div class="mhead"><span class="ricon s-amber">${ICON.clock}</span><div><b>Meriam, nesiahaj na PC ${progress.left} s</b><span>Počítam, koľko pracuje procesor a čo beží, keď nič nerobíš.</span></div></div><div class="bar"><i style="width:${progress.p * 100}%"></i></div></div>`;
+    return;
+  }
+  const last = ms.list[0], base = ms.base;
+  if (!last) {
+    box.innerHTML = `<div class="card mcard mempty land"><span class="mill">${ICON.clock}</span><div><b>Zmeraj si PC skôr, než niečo zmeníš</b>
+      <span>Za 30 sekúnd zistím, koľko pracuje procesor v pokoji, koľko je obsadenej pamäte a koľko vecí beží. Po úpravách to zmeriaš znova a uvidíš rozdiel v číslach, nie v pocitoch.</span></div>
+      <button class="btn primary" id="measureGo">Zmerať teraz</button></div>`;
+    $('#measureGo').onclick = measureRun;
+    return;
+  }
+  const same = !base || base.at === last.at;
+  const tiles = METRICS.filter(([k]) => last[k] != null).map(([k, label, ic, fmt, unit, eps, d], i) => {
+    const b = same ? null : base[k];
+    const diff = b == null ? 0 : last[k] - b;
+    const cls = b == null || Math.abs(diff) < eps ? 'same' : diff < 0 ? 'good' : 'worse';
+    const num = k === 'ram' ? last[k] / 2 ** 30 : k === 'boot' ? last[k] / 1000 : last[k];
+    return `<div class="mtile ${cls} land" style="--i:${i}"><span class="k">${ICON[ic]}${label}</span>
+      <span class="v num"><span data-n="${num}" data-d="${d}">0</span>${unit ? `<small>${unit}</small>` : ''}</span>
+      ${b == null ? '<span class="d">východisko</span>' : `<span class="d"><i>${cls === 'same' ? '=' : diff < 0 ? '↓' : '↑'}</i>${cls === 'same' ? 'bez zmeny' : `${fmt(Math.abs(diff))}${unit ? ` ${unit}` : ''}`}<em>pred ${fmt(b)}${unit ? ` ${unit}` : ''}</em></span>`}</div>`;
+  }).join('');
+  const better = same ? 0 : METRICS.filter(([k, , , , , eps]) => last[k] != null && base[k] != null && base[k] - last[k] >= eps).length;
+  const worse = same ? 0 : METRICS.filter(([k, , , , , eps]) => last[k] != null && base[k] != null && last[k] - base[k] >= eps).length;
+  box.innerHTML = `<div class="card mcard land"><div class="mhead"><span class="ricon s-${same ? 'off' : worse > better ? 'amber' : 'mint'}">${ICON.clock}</span>
+      <div><b>${same ? 'Východiskové meranie je hotové' : better && !worse ? 'Systém je na tom lepšie než pred úpravami' : worse > better ? 'Oproti východisku sa systém zhoršil' : better ? 'Niečo sa zlepšilo, niečo nie' : 'Oproti východisku bez väčšej zmeny'}</b>
+      <span>${same ? `Zmerané ${snapLabel(last)}. Urob úpravy, reštartuj a zmeraj znova.` : `Pred: ${snapLabel(base)} · Teraz: ${snapLabel(last)}`}</span></div>
+      <div class="mbtns"><button class="btn small" id="measureGo">${ICON.restart}Zmerať znova</button>${same ? '' : '<button class="btn small ghost" id="measureReset" title="Posledné meranie sa stane novým východiskom">Nové východisko</button>'}</div></div>
+    <div class="mtiles">${tiles}</div>
+    <p class="why">Meraj vždy v rovnakej situácii: pár minút po štarte a bez otvorených appiek, inak porovnávaš niečo iné.${last.boot == null ? ' Čas štartu pribudne po hĺbkovej kontrole v Stabilite.' : ''}</p></div>`;
+  countUp(box);
+  $('#measureGo').onclick = measureRun;
+  if ($('#measureReset')) $('#measureReset').onclick = () => { ms.base = ms.list[0]; storeSet('measure', { base: ms.base, list: ms.list }); renderMeasure(); toast('Nové východisko nastavené'); };
+}
+
+async function measureRun() {
+  if (ms.busy || idle.running) return;
+  ms.busy = true;
+  try {
+    const r = await sampleIdle((k, N) => renderMeasure({ left: (N - k) * 2, p: k / N }));
+    if (!startupItems) startupItems = await invoke('autostart_list').catch(() => null);
+    const boots = (sb.deep?.boots || []).filter((x) => x.boot > 0).sort((a, b) => a.at.localeCompare(b.at));
+    const snap = { at: nowSec(), cpu: r.cpu, ram: r.ram, procs: r.procs, auto: startupItems ? startupItems.filter((i) => i.enabled).length : null, boot: boots.length ? boots.at(-1).boot : null };
+    ms.list.unshift(snap);
+    ms.list = ms.list.slice(0, 30);
+    if (!ms.base) ms.base = snap;
+    storeSet('measure', { base: ms.base, list: ms.list });
+  } finally { ms.busy = false; }
+  renderMeasure();
 }
 
 /* ========================================================== HISTORY */
@@ -2298,7 +2514,7 @@ function renderHistory() {
 views.history = { enter() { loadHistory(); } };
 
 /* ========================================================== HELPER */
-let helperDirty = true, helperBusy = false;
+let helperDirty = true, helperBusy = false, helperFilter = 'all';
 const POWER_SAVER = 'a1841308-3541-4fab-bc81-f71556f20b4a';
 
 async function runHelper() {
@@ -2470,14 +2686,20 @@ function renderHelper(r) {
     ? `Našiel som ${r.tips.length} ${plural(r.tips.length, 'vec', 'veci', 'vecí')}, ktoré stoja za pozornosť${r.gain ? ` · môžeš uvoľniť ${bytes(r.gain)}` : ''}`
     : 'Všetko vyzerá dobre';
   $('#helperBody').innerHTML =
+    (r.tips.length > 4 ? (() => { const n = (l) => r.tips.filter((t) => t.level === l).length; if (helperFilter !== 'all' && !n(helperFilter)) helperFilter = 'all';
+      return `<div class="seg hfilter" id="helperFilter"><div class="knob"></div>${[['all', 'Všetko', r.tips.length], ['high', 'Dôležité', n('high')], ['mid', 'Odporúčam', n('mid')], ['low', 'Tipy', n('low')]].filter(([, , c]) => c).map(([k, l, c]) => `<button data-k="${k}" class="${k === helperFilter ? 'on' : ''}">${l}<i>${c}</i></button>`).join('')}</div>`; })() : '') +
     (r.tips.length ? tipCards(r.tips, helperActions) : `<div class="card empty">${ICON.check}Nenašiel som nič, čo by stálo za zmenu. Pekne udržiavaný počítač.</div>`) +
     (r.ok.length ? `<h2>V poriadku</h2><div class="card oklist">${r.ok.map((o) => `<div>${ICON.check}<span>${esc(o)}</span></div>`).join('')}</div>` : '') +
     (r.scanned ? '' : '<div class="note">Tip: po skene disku v Úložisku nájdem aj cache strihových a grafických programov, staré súbory a hry, ktoré už nehráš.</div>') +
     '<div class="note">Sám nič nemením. Kde sa dá, zmeníš to jedným klikom a v Histórii to vrátiš.</div>';
   $$('#helperBody [data-a]').forEach((b) => (b.onclick = () => helperActions[+b.dataset.a]?.()));
+  bindTipCards($('#helperBody'));
+  const hf = $('#helperFilter');
+  if (hf) seg(hf, (k) => { helperFilter = k; $('#helperBody').dataset.filter = k; });
+  $('#helperBody').dataset.filter = helperFilter;
 }
 $('#helperRefresh').onclick = () => { helperDirty = true; $('#helperBody').innerHTML = ''; runHelper(); };
-views.helper = { enter() { if (helperDirty) runHelper(); } };
+views.helper = { enter() { measureInit().then(() => { if (!ms.busy) renderMeasure(); }); if (helperDirty) runHelper(); } };
 
 /* ========================================================== HARDWARE + PC CARD */
 let hwLoaded = false, specs = null, hwReport = null;
@@ -2951,3 +3173,5 @@ idleStatus();
 setView('helper');
 setIdle();
 setTimeout(checkUpdate, 2500);
+
+tuneInit();

@@ -3,6 +3,7 @@
 (function () {
   if (window.__TAURI__) return;
   window.MOCK_IDLE_MS = location.search.includes('fast') ? 90 : 2000;
+  window.MOCK_STEP_MS = location.search.includes('fast') ? 150 : 450;
   const GB = 1 << 30, MB = 1 << 20;
   let scanStart = 0, scanning = false, done = false, snapN = 0;
 
@@ -66,6 +67,18 @@
   const mockChanges = [];
   const mockBench = { phase: 'idle' };
   let mockRestore = 0, mockMethod = 'walk';
+  function mockApplyOne(a) {
+          if (a.op === 'restart_explorer' || a.op === 'launch' || a.op === 'enable_protection') return { ok: true, error: null, elevated: false };
+          if (a.op === 'restore_point') { mockRestore = Date.now() / 1000; mockChanges.push({ at: Date.now() / 1000, id: 'restore', name: 'Bod obnovenia systému', toggle: null, enabled: true, undone: false, detail: 'Vytvorený pred zmenami' }); return { ok: true, error: null, elevated: true }; }
+          if (a.op === 'uninstall') { const i = mockApps.findIndex((x) => x.full === a.full); if (i >= 0) mockApps.splice(i, 1); mockChanges.push({ at: Date.now() / 1000, id: 'appx:' + a.full.split('_')[0], name: a.name, toggle: null, enabled: false, undone: false }); return { ok: true, error: null, elevated: false }; }
+          if (a.op === 'kill') { mockChanges.push({ at: Date.now() / 1000, id: 'kill:' + a.pid, name: a.exe, toggle: null, enabled: false, undone: false }); return { ok: true, error: null, elevated: false }; }
+          if (a.toggle.t === 'tweak') { const t = mockTweaks.find((x) => x.key === a.toggle.key); if (t) t.on = a.enable; }
+          const it = mockAuto.find((x) => x.id === a.id); if (it) it.enabled = a.enable;
+          mockChanges.push({ at: Date.now() / 1000, id: a.id, name: a.name, toggle: a.toggle, enabled: a.enable, undone: false });
+          return { ok: true, error: null, elevated: a.toggle.t === 'service' };
+        }
+  const mockSetupDone = new Set();
+  let mockProgress = { done: 0, total: 0, current: null };
   const mockCaches = [
           { label: 'DaVinci Resolve – render cache', hint: 'Resolve si ju vytvorí znova. Zmaž ju v Resolve (Playback → Delete Render Cache) alebo keď Resolve nebeží.', path: 'C:\\Users\\Alex\\Videos\\ShapeFX\\CacheClip', size: 41 * GB, files: 3200, id: 1, how: 'contents' },
           { label: 'Adobe – media cache (Premiere, After Effects)', hint: 'Bezpečné zmazať, keď Adobe appky nebežia. Vytvorí sa znova pri otvorení projektu.', path: 'C:\\Users\\Alex\\AppData\\Roaming\\Adobe\\Common\\Media Cache Files', size: 12.6 * GB, files: 800, id: 2, how: 'contents' },
@@ -284,6 +297,37 @@
         case 'storage_clean': return args.items.map((it) => { const i = mockCaches.findIndex((c) => c.path === it.path); const f = i >= 0 ? mockCaches[i].size : 3 * GB; if (i >= 0) mockCaches.splice(i, 1); mockChanges.push({ at: Date.now() / 1000, id: (it.kind === 'cache' ? 'clean:' : it.kind === 'bin' ? 'bin' : 'trash:') + it.path, name: it.label, toggle: null, enabled: false, undone: false, detail: (it.kind === 'trash' ? 'Do Koša · ' : 'Uvoľnené ') + (f / GB).toFixed(1).replace('.', ',') + ' GB' }); return { ok: true, error: null, elevated: false, freed: f }; });
         case 'store_get': return localStorage.getItem('store:' + args.key);
         case 'store_set': localStorage.setItem('store:' + args.key, args.value); return null;
+        case 'setup_status': {
+          const P = (id, name, cat, user, about, installed = false) => ({ id, name, cat, user, about, installed });
+          return { winget: true, region: 'SK', edge_removable: true, apps: [
+            P('Google.Chrome', 'Google Chrome', 'browser', false, 'Najpoužívanejší prehliadač, synchronizácia s Google účtom.'),
+            P('Mozilla.Firefox', 'Firefox', 'browser', false, 'Nezávislý prehliadač, dobré súkromie a doplnky.'),
+            P('Brave.Brave', 'Brave', 'browser', false, 'Chrome bez sledovania, blokuje reklamy sám.'),
+            P('Opera.OperaGX', 'Opera GX', 'browser', false, 'Prehliadač pre hráčov s limitmi na RAM a procesor.'),
+            P('Discord.Discord', 'Discord', 'chat', true, 'Hlasový chat a servery.', mockSetupDone.has('Discord.Discord')),
+            P('Telegram.TelegramDesktop', 'Telegram', 'chat', true, 'Správy, kanály a skupiny.'),
+            P('Valve.Steam', 'Steam', 'games', false, 'Najväčší obchod s hrami na PC.', true),
+            P('EpicGames.EpicGamesLauncher', 'Epic Games', 'games', false, 'Fortnite a hry zadarmo každý týždeň.'),
+            P('ElectronicArts.EADesktop', 'EA app', 'games', false, 'Hry od EA (FC, Battlefield, The Sims).'),
+            P('Ubisoft.Connect', 'Ubisoft Connect', 'games', false, 'Hry od Ubisoftu.'),
+            P('GOG.Galaxy', 'GOG Galaxy', 'games', false, 'Hry bez DRM a knižnica všetkých obchodov na jednom mieste.'),
+            P('Spotify.Spotify', 'Spotify', 'media', true, 'Hudba a podcasty.'),
+            P('VideoLAN.VLC', 'VLC', 'media', false, 'Prehrá každé video a zvuk.'),
+            P('OBSProject.OBSStudio', 'OBS Studio', 'media', false, 'Nahrávanie obrazovky a streamovanie.'),
+            P('7zip.7zip', '7-Zip', 'tools', false, 'Rozbalí zip, rar, 7z a ďalšie archívy.'),
+            P('Notepad++.Notepad++', 'Notepad++', 'tools', false, 'Poznámkový blok pre pokročilých.'),
+            P('Microsoft.PowerToys', 'PowerToys', 'tools', false, 'Užitočné doplnky Windowsu od Microsoftu (rozloženie okien, výber farby, hromadné premenovanie…).'),
+            P('voidtools.Everything', 'Everything', 'tools', false, 'Nájde súbor na disku okamžite, kým píšeš.'),
+            P('ShareX.ShareX', 'ShareX', 'tools', false, 'Snímky obrazovky, nahrávanie a úpravy.'),
+            P('Bitwarden.Bitwarden', 'Bitwarden', 'tools', false, 'Správca hesiel zadarmo.'),
+            P('Microsoft.VisualStudioCode', 'Visual Studio Code', 'tools', false, 'Editor kódu.'),
+          ].map((a) => ({ ...a, installed: a.installed || mockSetupDone.has(a.id) })), remove: [
+            P('Microsoft.Edge', 'Microsoft Edge', 'browser', false, 'Odinštalovať sa dá len v Európskom hospodárskom priestore. WebView2, na ktorom bežia iné appky (aj WhatsInside), ostane.', !mockSetupDone.has('Microsoft.Edge')),
+            P('Microsoft.OneDrive', 'OneDrive', 'tools', true, 'Synchronizácia s cloudom Microsoftu. Súbory, ktoré sú už v OneDrive, ostanú v cloude aj v priečinku na disku.', !mockSetupDone.has('Microsoft.OneDrive')),
+          ] };
+        }
+        case 'actions_progress': return { ...mockProgress };
+        case 'open_system': return null;
         case 'tune_watch': return !!args.since;
         case 'tweaks_list': return mockTweaks.map((t) => ({ ...t }));
         case 'save_card': return 'C:\\Users\\Alex\\Pictures\\WhatsInside\\WhatsInside-PC-1760900000.png';
@@ -291,16 +335,24 @@
         case 'autostart_list': return mockAuto.map((x) => ({ ...x }));
         case 'changes_list': return mockChanges;
         case 'changes_undo': { const c = mockChanges[args.index]; c.undone = true; const it = mockAuto.find((x) => x.id === c.id); if (it) it.enabled = !c.enabled; const tw = c.toggle && mockTweaks.find((x) => 'tweak:' + x.key === c.id); if (tw) tw.on = !c.enabled; return null; }
-        case 'actions_apply': return args.actions.map((a) => {
-          if (a.op === 'restart_explorer' || a.op === 'launch' || a.op === 'enable_protection') return { ok: true, error: null, elevated: false };
-          if (a.op === 'restore_point') { mockRestore = Date.now() / 1000; mockChanges.push({ at: Date.now() / 1000, id: 'restore', name: 'Bod obnovenia systému', toggle: null, enabled: true, undone: false, detail: 'Vytvorený pred zmenami' }); return { ok: true, error: null, elevated: true }; }
-          if (a.op === 'uninstall') { const i = mockApps.findIndex((x) => x.full === a.full); if (i >= 0) mockApps.splice(i, 1); mockChanges.push({ at: Date.now() / 1000, id: 'appx:' + a.full.split('_')[0], name: a.name, toggle: null, enabled: false, undone: false }); return { ok: true, error: null, elevated: false }; }
-          if (a.op === 'kill') { mockChanges.push({ at: Date.now() / 1000, id: 'kill:' + a.pid, name: a.exe, toggle: null, enabled: false, undone: false }); return { ok: true, error: null, elevated: false }; }
-          if (a.toggle.t === 'tweak') { const t = mockTweaks.find((x) => x.key === a.toggle.key); if (t) t.on = a.enable; }
-          const it = mockAuto.find((x) => x.id === a.id); if (it) it.enabled = a.enable;
-          mockChanges.push({ at: Date.now() / 1000, id: a.id, name: a.name, toggle: a.toggle, enabled: a.enable, undone: false });
-          return { ok: true, error: null, elevated: a.toggle.t === 'service' };
-        });
+        case 'actions_apply': {
+          const step = window.MOCK_STEP_MS ?? 450, out = [];
+          mockProgress = { done: 0, total: args.actions.length, current: null };
+          for (const a of args.actions) {
+            mockProgress.current = a.name || null;
+            if (a.op === 'winget') await new Promise((r) => setTimeout(r, step * 3));
+            else await new Promise((r) => setTimeout(r, step / 3));
+            if (a.op === 'winget') {
+              const fail = a.id === 'Ubisoft.Connect';
+              if (!fail) mockSetupDone.add(a.id);
+              mockChanges.push({ at: Date.now() / 1000, id: 'winget:' + a.id, name: a.name, toggle: null, enabled: a.install, undone: false, detail: a.install ? 'Nainštalované cez winget' : 'Odinštalované' });
+              out.push(fail ? { ok: false, error: 'Installer failed with exit code: 1603', elevated: true } : { ok: true, error: null, elevated: !a.install });
+            } else out.push(mockApplyOne(a));
+            mockProgress.done++;
+          }
+          mockProgress.current = null;
+          return out;
+        }
         case 'update_check': return { current: '0.4.0', newer: true, installed: true, error: null, latest: { version: '0.4.1', url: '', sha256: '', notes: '### Nové\n- Rýchlejší scan\n- Opravy' } };
         case 'update_install': throw new Error('V náhľade sa aktualizovať nedá.');
         case 'hw_scan': return {

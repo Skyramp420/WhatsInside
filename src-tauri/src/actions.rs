@@ -60,6 +60,40 @@ pub enum Action {
     RestorePoint,
     /// Turn on System Protection for the system drive (admin).
     EnableProtection,
+    /// Install or remove a package from the first-setup list (`setup`) with winget.
+    Winget {
+        id: String,
+        name: String,
+        install: bool,
+    },
+}
+
+/// How far the current batch is, for long ones (installing apps).
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
+pub struct Progress {
+    pub done: usize,
+    pub total: usize,
+    pub current: Option<String>,
+}
+
+static PROGRESS: std::sync::Mutex<Progress> = std::sync::Mutex::new(Progress { done: 0, total: 0, current: None });
+
+pub fn progress() -> Progress {
+    PROGRESS.lock().map(|p| p.clone()).unwrap_or_default()
+}
+
+fn set_progress(done: usize, total: usize, current: Option<String>) {
+    if let Ok(mut p) = PROGRESS.lock() {
+        *p = Progress { done, total, current };
+    }
+}
+
+fn label(a: &Action) -> Option<String> {
+    match a {
+        Action::Winget { name, .. } | Action::Uninstall { name, .. } | Action::Startup { name, .. } => Some(name.clone()),
+        Action::RestorePoint => Some("Bod obnovenia systému".into()),
+        _ => None,
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
@@ -152,6 +186,7 @@ fn always_admin(a: &Action) -> bool {
         // Caches inside C:\Windows (update downloads, crash dumps, Windows\Temp).
         Action::Clean { path, .. } => crate::catalog::is_windows_path(path),
         Action::RestorePoint | Action::EnableProtection => true,
+        Action::Winget { id, .. } => crate::setup::find(id).is_some_and(|p| !p.user),
         Action::Startup { toggle: Toggle::Service { .. }, .. } => true,
         Action::Startup { toggle: Toggle::Tweak { key }, .. } => tweaks::find(key).is_some_and(|t| t.admin),
         _ => false,
@@ -258,12 +293,19 @@ pub fn apply(actions: Vec<Action>) -> Vec<Outcome> {
     let elevated_now = platform::is_admin();
     let mut out = vec![Outcome::default(); actions.len()];
     let mut later = Vec::new();
+    let total = actions.len();
+    let mut done = 0;
+    set_progress(0, total, None);
     for (i, a) in actions.iter().enumerate() {
         if !elevated_now && always_admin(a) {
             later.push(i);
             continue;
         }
-        match platform::apply_one(a) {
+        set_progress(done, total, label(a));
+        let r = platform::apply_one(a);
+        done += 1;
+        set_progress(done, total, None);
+        match r {
             Ok(freed) => {
                 out[i].ok = true;
                 out[i].freed = freed;
@@ -280,7 +322,7 @@ pub fn apply(actions: Vec<Action>) -> Vec<Outcome> {
     }
     if !later.is_empty() {
         let batch: Vec<Action> = later.iter().map(|&i| actions[i].clone()).collect();
-        match platform::run_elevated(&batch) {
+        match platform::run_elevated(&batch, done, total) {
             Ok(res) => {
                 for (k, &i) in later.iter().enumerate() {
                     let r = res.get(k).cloned().unwrap_or(Outcome {
@@ -368,6 +410,15 @@ pub fn apply(actions: Vec<Action>) -> Vec<Outcome> {
                 detail: Some("Vytvorený pred zmenami".into()),
                 })
             }
+            Action::Winget { id, name, install } => log.push(Change {
+                at: now(),
+                id: format!("winget:{id}"),
+                name: name.clone(),
+                toggle: None,
+                enabled: *install,
+                undone: false,
+                detail: Some(if *install { "Nainštalované cez winget" } else { "Odinštalované" }.into()),
+            }),
             Action::Launch { .. } | Action::RestartExplorer | Action::EnableProtection => {}
         }
     }
@@ -415,13 +466,21 @@ pub fn run_batch(input: &str, output: &str) {
         .ok()
         .and_then(|b| serde_json::from_slice(&b).ok())
         .unwrap_or_default();
+    let progress = format!("{output}.progress");
+    let total = actions.len();
     let res: Vec<Outcome> = actions
         .iter()
-        .map(|a| match platform::apply_one(a) {
-            Ok(freed) => Outcome { ok: true, error: None, elevated: true, freed },
-            Err(e) => Outcome { ok: false, error: Some(e), elevated: true, freed: None },
+        .enumerate()
+        .map(|(k, a)| {
+            let p = Progress { done: k, total, current: label(a) };
+            let _ = std::fs::write(&progress, serde_json::to_vec(&p).unwrap_or_default());
+            match platform::apply_one(a) {
+                Ok(freed) => Outcome { ok: true, error: None, elevated: true, freed },
+                Err(e) => Outcome { ok: false, error: Some(e), elevated: true, freed: None },
+            }
         })
         .collect();
+    let _ = std::fs::remove_file(&progress);
     let _ = std::fs::write(output, serde_json::to_vec(&res).unwrap_or_default());
 }
 
@@ -540,6 +599,12 @@ mod platform {
             Action::Kill { pid, exe } => kill(*pid, exe),
             Action::Launch { path } => launch(path),
             Action::Uninstall { full, .. } => crate::appx::uninstall(full),
+            Action::Winget { id, install, .. } => {
+                if !crate::setup::valid_id(id) {
+                    return Err("Tento balík nie je v zozname.".into());
+                }
+                crate::setup::run(id, *install)
+            }
             Action::Clean { .. } | Action::Trash { .. } | Action::EmptyBin | Action::RestorePoint | Action::EnableProtection => {
                 Err("Nečakaná akcia.".into())
             }
@@ -632,7 +697,7 @@ mod platform {
         }
     }
 
-    pub fn run_elevated(batch: &[Action]) -> Result<Vec<Outcome>, String> {
+    pub fn run_elevated(batch: &[Action], base: usize, total: usize) -> Result<Vec<Outcome>, String> {
         let dir = std::env::temp_dir();
         let tag = format!("{}-{}", std::process::id(), super::now());
         let input = dir.join(format!("whatsinside-apply-{tag}.json"));
@@ -644,7 +709,25 @@ mod platform {
             input.to_string_lossy(),
             output.to_string_lossy()
         );
-        if let Err(e) = run_self_elevated(&params) {
+        // The elevated copy writes how far it got; mirror that into our progress.
+        let stop = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let watcher = {
+            let stop = stop.clone();
+            let file = std::path::PathBuf::from(format!("{}.progress", output.to_string_lossy()));
+            std::thread::spawn(move || {
+                while !stop.load(std::sync::atomic::Ordering::Relaxed) {
+                    if let Some(p) = std::fs::read(&file).ok().and_then(|b| serde_json::from_slice::<super::Progress>(&b).ok()) {
+                        super::set_progress(base + p.done, total, p.current);
+                    }
+                    std::thread::sleep(std::time::Duration::from_millis(400));
+                }
+            })
+        };
+        let ran = run_self_elevated(&params);
+        stop.store(true, std::sync::atomic::Ordering::Relaxed);
+        let _ = watcher.join();
+        super::set_progress(total, total, None);
+        if let Err(e) = ran {
             let _ = std::fs::remove_file(&input);
             return Err(e);
         }
@@ -667,7 +750,7 @@ mod platform {
     pub fn apply_one(_: &Action) -> Result<Option<u64>, String> {
         Err("Len na Windows.".into())
     }
-    pub fn run_elevated(_: &[Action]) -> Result<Vec<Outcome>, String> {
+    pub fn run_elevated(_: &[Action], _: usize, _: usize) -> Result<Vec<Outcome>, String> {
         Err("Len na Windows.".into())
     }
     pub fn run_self_elevated(_: &str) -> Result<u32, String> {

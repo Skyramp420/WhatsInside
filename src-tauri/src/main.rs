@@ -23,6 +23,7 @@ mod known;
 mod mft;
 mod procs;
 mod regw;
+mod setup;
 mod stability;
 mod storage;
 mod system;
@@ -146,6 +147,35 @@ async fn store_set(key: String, value: String) -> Result<(), String> {
         std::fs::create_dir_all(d).map_err(|e| e.to_string())?;
     }
     std::fs::write(p, value).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn setup_status() -> setup::Status {
+    setup::status()
+}
+
+/// Opens one of a few known Windows pages (no arbitrary URLs).
+#[tauri::command]
+fn open_system(target: String) -> Result<(), String> {
+    let uri = match target.as_str() {
+        "defaultapps" => "ms-settings:defaultapps",
+        "appinstaller" => "ms-windows-store://pdp/?productid=9NBLGGH4NNS1",
+        _ => return Err("Neznáma stránka.".into()),
+    };
+    #[cfg(windows)]
+    {
+        std::process::Command::new("explorer.exe").arg(uri).spawn().map(|_| ()).map_err(|e| e.to_string())
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = uri;
+        Err("Len na Windows.".into())
+    }
+}
+
+#[tauri::command]
+fn actions_progress() -> actions::Progress {
+    actions::progress()
 }
 
 #[tauri::command]
@@ -619,6 +649,9 @@ fn main() {
             appx_list,
             shader_caches,
             tune_watch,
+            setup_status,
+            actions_progress,
+            open_system,
             store_get,
             store_set,
         ])

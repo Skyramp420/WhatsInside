@@ -46,6 +46,7 @@ const ICON = {
   search: '<svg viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.6"/><path d="M10.5 10.5l3.5 3.5"/></svg>',
   x: '<svg viewBox="0 0 16 16"><path d="M4.5 4.5l7 7M11.5 4.5l-7 7"/></svg>',
   arrow: '<svg viewBox="0 0 16 16"><path d="M6 3.5L10.5 8 6 12.5"/></svg>',
+  star: '<svg viewBox="0 0 16 16"><path d="M8 1.8l1.8 3.9 4.2.5-3.1 2.9.8 4.2L8 11.2l-3.7 2.1.8-4.2L2 6.2l4.2-.5z"/></svg>',
   bolt: '<svg viewBox="0 0 16 16"><path d="M9 1.5L3.5 9h4l-1 5.5L12.5 7h-4z"/></svg>',
   ram: '<svg viewBox="0 0 16 16"><path d="M1.5 5h13v5h-13zM4 10v2M7 10v2M10 10v2M13 10v2"/></svg>',
   rocket: '<svg viewBox="0 0 16 16"><path d="M8 1.8v5.4"/><path d="M4.4 4.1a5.3 5.3 0 1 0 7.2 0"/></svg>',
@@ -1852,6 +1853,231 @@ function renderWindows() {
 $('#winRefresh').onclick = () => { tweakStates = null; wn.facts = null; wn.apps = null; loadWindows(); };
 views.windows = { enter() { loadWindows(); } };
 
+/* ========================================================== NEW WINDOWS (first setup) */
+// Everything people do right after installing Windows, in one pass:
+// a browser, the usual apps (winget), removing what came preinstalled and
+// the settings that make Windows quieter. One button, one UAC prompt.
+const SETUP_TWEAKS = ['start_ads', 'lock_ads', 'setup_nags', 'explorer_ads', 'start_web', 'ad_id', 'tips', 'file_ext', 'end_task', 'edge_boost', 'startup_delay', 'no_auto_restart', 'clipboard_history', 'classic_menu', 'widgets_off', 'recall_off'];
+const SETUP_CATS = [['chat', 'Komunikácia', 'user'], ['games', 'Hry', 'game'], ['media', 'Hudba a video', 'video'], ['tools', 'Nástroje', 'gear']];
+const BROWSER_HUE = { 'Google.Chrome': 'blue', 'Mozilla.Firefox': 'amber', 'Brave.Brave': 'rec', 'Opera.OperaGX': 'lilac' };
+const nw = { st: null, apps: null, pick: new Set(), drop: new Set(), appx: new Set(), tw: new Set(), busy: false, result: null, touched: false };
+
+async function loadSetup() {
+  if (nw.busy) return;
+  if (!nw.st) $('#setupBody').innerHTML = scanCard('Pozerám, čo už máš', 'Nainštalované appky, predinštalovaný balast a nastavenia.', ['Nainštalované appky (winget)', 'Predinštalované appky', 'Nastavenia Windowsu']);
+  const cl = checklist($('#setupBody'));
+  const [st, apps, tw] = await Promise.all([
+    cl.step(0, invoke('setup_status').catch(() => null)),
+    cl.step(1, wn.apps ? Promise.resolve(wn.apps) : invoke('appx_list').catch(() => [])),
+    cl.step(2, tweakStates ? Promise.resolve(tweakStates) : invoke('tweaks_list').catch(() => [])),
+  ]);
+  await cl.settle();
+  nw.st = st; nw.apps = wn.apps = apps; tweakStates = tw;
+  if (!nw.touched) {
+    // First visit: the safe defaults are pre-selected, apps are left to the user.
+    nw.appx = new Set(apps.filter((a) => a.junk).map((a) => a.full));
+    nw.tw = new Set(setupTweaks().map((t) => t.key));
+    nw.drop = new Set();
+    nw.pick = new Set();
+  }
+  renderSetup();
+}
+
+function setupTweaks() {
+  return (tweakStates || []).filter((t) => t.available && !t.on && SETUP_TWEAKS.includes(t.key))
+    .sort((a, b) => SETUP_TWEAKS.indexOf(a.key) - SETUP_TWEAKS.indexOf(b.key));
+}
+
+function appTile(a, i) {
+  const on = nw.pick.has(a.id);
+  const icon = a.cat === 'browser' ? 'globe' : (SETUP_CATS.find((c) => c[0] === a.cat) || [])[2] || 'app';
+  return `<button class="stile land ${on ? 'on' : ''} ${a.installed ? 'have' : ''}" data-id="${a.id}" style="--i:${i}" ${a.installed ? 'disabled' : ''} aria-pressed="${on}">
+    <span class="sic h-${BROWSER_HUE[a.id] || 'accent'}">${ICON[icon]}</span>
+    <span class="stx"><b>${esc(a.name)}</b><span>${esc(a.about)}</span></span>
+    <span class="sck">${a.installed ? '<em>Máš</em>' : `<svg viewBox="0 0 16 16"><path d="M3.5 8.5l3 3 6-7"/></svg>`}</span></button>`;
+}
+
+function setupCounts() {
+  return { inst: nw.pick.size, drop: nw.drop.size, appx: nw.appx.size, tw: nw.tw.size };
+}
+
+function renderSetup() {
+  const st = nw.st, body = $('#setupBody');
+  if (nw.result) return renderSetupResult();
+  const browsers = st ? st.apps.filter((a) => a.cat === 'browser') : [];
+  const edge = st?.remove.find((r) => r.id === 'Microsoft.Edge');
+  const od = st?.remove.find((r) => r.id === 'Microsoft.OneDrive');
+  const tws = setupTweaks();
+  const apps = nw.apps || [];
+  const step = (n, title, sub, extra = '') => `<div class="shead"><span class="snum">${n}</span><div><h2>${title}</h2><span>${sub}</span></div>${extra}</div>`;
+  const row = (kind, key, title, about, on, opts = {}) => `<label class="arow srow2 ${opts.dis ? 'dis' : ''}"><input type="checkbox" data-kind="${kind}" data-key="${esc(key)}" ${on ? 'checked' : ''} ${opts.dis ? 'disabled' : ''}>
+      <div style="min-width:0"><div class="t">${esc(title)}${opts.badge || ''}</div><div class="a">${esc(about)}</div></div>${opts.side || ''}</label>`;
+  const restartNote = { explorer: 'Reštart Prieskumníka', logoff: 'Po odhlásení', reboot: 'Po reštarte' };
+  body.innerHTML = `
+    <div class="card sintro land"><div class="sintro-art">${ICON.win}</div><div>
+      <b>Nový Windows za pár minút</b>
+      <span>Vyber prehliadač a appky, ja ich stiahnem priamo od výrobcov cez winget (správcu balíkov vo Windowse). K tomu odstránim predinštalovaný balast a vypnem reklamy a otravné ponuky. Všetko naraz, s jedným oknom UAC a s bodom obnovenia, ak chceš.</span></div></div>
+    ${st && !st.winget ? `<div class="card recbar warn"><div>${ICON.warn}<div><b>Chýba winget, bez neho appky nenainštalujem.</b><span>Je súčasťou „Inštalátora aplikácií“ z Microsoft Store. Na Windows 11 býva hneď, na staršom Windowse 10 ho treba doinštalovať.</span></div></div><button class="btn small" id="getWinget">Otvoriť Microsoft Store</button></div>` : ''}
+
+    <section class="sstep">${step(1, 'Prehliadač', 'Ktorý chceš používať namiesto Edge?')}
+      <div class="stiles b4">${browsers.map(appTile).join('')}</div>
+      <div class="card list sopts">
+        ${edge ? row('drop', edge.id, 'Odinštalovať Microsoft Edge', st.edge_removable ? edge.about : 'Microsoft to dovoľuje len v EÚ a niekoľkých ďalších krajinách Európy. Tvoja oblasť vo Windowse to neumožňuje, Edge môžeš len stlmiť nižšie (bez spúšťania na pozadí).', nw.drop.has(edge.id), { dis: !edge.installed || !st.edge_removable, badge: edge.installed ? '' : '<span class="badge maybe">Nie je nainštalovaný</span>' }) : ''}
+        <div class="arow srow2 nob"><span class="ricon">${ICON.star}</span><div style="min-width:0"><div class="t">Predvolený prehliadač</div><div class="a">Windows nedovolí appkám nastaviť ho za teba. Po inštalácii klikni sem, vyber prehliadač a „Nastaviť ako predvolené“.</div></div><button class="btn small" id="setDefault">Otvoriť nastavenia</button></div>
+      </div>
+    </section>
+
+    <section class="sstep">${step(2, 'Appky', 'Stiahnu sa najnovšie verzie, bez lišt a ponúk navyše.', `<span class="spill" id="pickN"></span>`)}
+      ${SETUP_CATS.map(([cat, title, icon]) => { const list = st ? st.apps.filter((a) => a.cat === cat) : []; return list.length ? `<h3 class="cat">${ICON[icon]}${title}</h3><div class="stiles">${list.map(appTile).join('')}</div>` : ''; }).join('')}
+    </section>
+
+    <section class="sstep">${step(3, 'Odstrániť', 'Predinštalované appky, ktoré väčšina ľudí nikdy neotvorí. Všetky sa dajú vrátiť z Microsoft Store.', apps.length ? `<button class="btn small ghost" data-all="appx">${apps.every((a) => nw.appx.has(a.full)) ? 'Zrušiť výber' : 'Vybrať všetko'}</button>` : '')}
+      <div class="card list">
+        ${od?.installed ? row('drop', od.id, 'OneDrive', od.about, nw.drop.has(od.id), { badge: (wn.facts?.onedrive_folders || []).length ? `<span class="badge lv-amber">Zálohuje ${esc(wn.facts.onedrive_folders.join(', '))}</span>` : '' }) : ''}
+        ${apps.length ? apps.map((a) => row('appx', a.full, a.title, a.about, nw.appx.has(a.full))).join('') : `<div class="empty">${ICON.check}Predinštalovaný balast už je preč.</div>`}
+      </div>
+    </section>
+
+    <section class="sstep">${step(4, 'Nastavenia', 'Menej reklám a otravných ponúk, praktickejší Prieskumník. Každé sa dá vrátiť v Histórii.', tws.length ? `<button class="btn small ghost" data-all="tw">${tws.every((t) => nw.tw.has(t.key)) ? 'Zrušiť výber' : 'Vybrať všetko'}</button>` : '')}
+      <div class="card list">${tws.length ? tws.map((t) => row('tw', t.key, t.title, t.about, nw.tw.has(t.key), { badge: restartNote[t.restart] ? `<span class="badge maybe">${restartNote[t.restart]}</span>` : '', side: t.admin ? `<span class="sadm" data-tip="Pre celý počítač, potrebuje povolenie správcu.">${SHIELD}</span>` : '' })).join('') : `<div class="empty">${ICON.check}Odporúčané nastavenia už máš.</div>`}</div>
+    </section>
+
+    <div class="setupbar" id="setupBar"><div class="sbsum" id="sbSum"></div><button class="btn primary" id="setupGo">${ICON.bolt}Spustiť</button></div>`;
+
+  $$('.stile', body).forEach((b) => (b.onclick = () => {
+    const id = b.dataset.id;
+    nw.pick.has(id) ? nw.pick.delete(id) : nw.pick.add(id);
+    nw.touched = true;
+    b.classList.toggle('on', nw.pick.has(id));
+    b.setAttribute('aria-pressed', nw.pick.has(id));
+    setupSum();
+  }));
+  $$('input[data-kind]', body).forEach((c) => (c.onchange = () => {
+    const set = { drop: nw.drop, appx: nw.appx, tw: nw.tw }[c.dataset.kind];
+    c.checked ? set.add(c.dataset.key) : set.delete(c.dataset.key);
+    nw.touched = true;
+    setupSum();
+  }));
+  $$('[data-all]', body).forEach((b) => (b.onclick = () => {
+    const all = b.dataset.all === 'appx' ? apps.map((a) => a.full) : tws.map((t) => t.key);
+    const set = nw[b.dataset.all];
+    const full = all.every((k) => set.has(k));
+    all.forEach((k) => (full ? set.delete(k) : set.add(k)));
+    nw.touched = true;
+    renderSetup();
+  }));
+  $('#setDefault').onclick = () => invoke('open_system', { target: 'defaultapps' }).catch((e) => toast(String(e), 'err'));
+  if ($('#getWinget')) $('#getWinget').onclick = () => invoke('open_system', { target: 'appinstaller' }).catch((e) => toast(String(e), 'err'));
+  $('#setupGo').onclick = setupConfirm;
+  bindTips(body);
+  setupSum();
+}
+
+function setupSum() {
+  const c = setupCounts();
+  const parts = [
+    [c.inst, 'appku nainštalovať', 'appky nainštalovať', 'appiek nainštalovať', 'app'],
+    [c.drop + c.appx, 'appku odstrániť', 'appky odstrániť', 'appiek odstrániť', 'trash'],
+    [c.tw, 'nastavenie', 'nastavenia', 'nastavení', 'gear'],
+  ].filter(([n]) => n);
+  $('#sbSum').innerHTML = parts.length ? parts.map(([n, a, b, cc, ic]) => `<span>${ICON[ic]}<b class="num">${n}</b> ${plural(n, a, b, cc)}</span>`).join('') : '<span class="dim">Vyber, čo chceš urobiť</span>';
+  $('#setupGo').disabled = !parts.length || (c.inst && nw.st && !nw.st.winget && !c.drop && !c.appx && !c.tw);
+  const pn = $('#pickN');
+  if (pn) pn.textContent = c.inst ? `Vybrané: ${c.inst}` : '';
+  $('#setupBar').classList.toggle('lit', parts.length > 0);
+}
+
+function setupActions() {
+  const st = nw.st, list = [];
+  const tws = setupTweaks().filter((t) => nw.tw.has(t.key));
+  tws.forEach((t) => list.push({ a: { op: 'startup', id: `tweak:${t.key}`, name: t.title, toggle: { t: 'tweak', key: t.key }, enable: true }, kind: 'tw', label: t.title, icon: t.icon || 'gear', admin: t.admin }));
+  (nw.apps || []).filter((a) => nw.appx.has(a.full)).forEach((a) => list.push({ a: { op: 'uninstall', full: a.full, name: a.title }, kind: 'appx', label: a.title, icon: 'trash' }));
+  (st?.remove || []).filter((r) => nw.drop.has(r.id)).forEach((r) => list.push({ a: { op: 'winget', id: r.id, name: r.name, install: false }, kind: 'drop', label: r.name, icon: 'trash', admin: !r.user }));
+  if (st?.winget) (st.apps || []).filter((a) => nw.pick.has(a.id) && !a.installed).forEach((a) => list.push({ a: { op: 'winget', id: a.id, name: a.name, install: true }, kind: 'inst', label: a.name, icon: a.cat === 'browser' ? 'globe' : 'app', admin: !a.user }));
+  if (tws.some((t) => t.restart === 'explorer')) list.push({ a: { op: 'restart_explorer' }, kind: 'sys', label: 'Reštart Prieskumníka', icon: 'restart', quiet: true });
+  return { list, tws };
+}
+
+function setupConfirm() {
+  const { list, tws } = setupActions();
+  if (!list.length) return;
+  const admin = list.some((x) => x.admin || x.a.id === 'Microsoft.Edge') || tws.some((t) => t.admin);
+  const n = (k) => list.filter((x) => x.kind === k).length;
+  const m = modal(`<h3>Spustiť nastavenie Windowsu?</h3>
+    <div class="mlist">
+      ${n('inst') ? `<div class="mrow wrap"><span class="ricon s-mint">${ICON.app}</span><div><b>Nainštalovať ${n('inst')} ${plural(n('inst'), 'appku', 'appky', 'appiek')}</b><span>${esc(list.filter((x) => x.kind === 'inst').map((x) => x.label).join(', '))}</span></div></div>` : ''}
+      ${n('drop') + n('appx') ? `<div class="mrow wrap"><span class="ricon s-rec">${ICON.trash}</span><div><b>Odstrániť ${n('drop') + n('appx')} ${plural(n('drop') + n('appx'), 'appku', 'appky', 'appiek')}</b><span>${esc(list.filter((x) => x.kind === 'drop' || x.kind === 'appx').map((x) => x.label).join(', '))}</span></div></div>` : ''}
+      ${n('tw') ? `<div class="mrow wrap"><span class="ricon s-amber">${ICON.gear}</span><div><b>Zmeniť ${n('tw')} ${plural(n('tw'), 'nastavenie', 'nastavenia', 'nastavení')}</b><span>${esc(list.filter((x) => x.kind === 'tw').map((x) => x.label).join(', '))}</span></div></div>` : ''}
+    </div>
+    ${n('inst') ? '<p class="mp">Inštalácia trvá podľa rýchlosti internetu, väčšinou pár minút. Počas nej môžeš PC používať.</p>' : ''}
+    ${admin ? `<p class="mnote">${SHIELD}Raz sa objaví okno UAC, potvrď ho. Ostatné ide samo.</p>` : ''}
+    <div class="mact"><button class="btn" data-close>Zrušiť</button><button class="btn primary" id="sGo">Spustiť</button></div>`);
+  $('#sGo', m).onclick = () => { closeModal(); setupRun(list); };
+}
+
+async function setupRun(list) {
+  nw.busy = true;
+  const body = $('#setupBody');
+  const visible = list.filter((x) => !x.quiet);
+  body.innerHTML = `<div class="card srun land">
+      <div class="srun-top"><div class="srun-art"><svg viewBox="0 0 52 52"><circle class="rt" cx="26" cy="26" r="21"/><circle class="rv" id="srRing" cx="26" cy="26" r="21" stroke-dasharray="${2 * Math.PI * 21}" stroke-dashoffset="${2 * Math.PI * 21}"/></svg><span class="num" id="srPct">0 %</span></div>
+        <div><b id="srNow">Pripravujem…</b><span id="srSub">${visible.length} ${plural(visible.length, 'krok', 'kroky', 'krokov')} · ak sa objaví okno UAC, potvrď ho</span></div></div>
+      <div class="srun-list">${visible.map((x, i) => `<div class="sri" data-i="${i}"><span class="ck"></span>${ICON[x.icon] || ICON.gear}<span>${esc(x.label)}</span></div>`).join('')}</div>
+    </div>`;
+  setStatus('Nastavujem Windows', 'Inštalujem a upravujem, chvíľu to potrvá.', 'amber', 0);
+  const C = 2 * Math.PI * 21;
+  const order = visible.map((x, i) => [x.admin ? 1 : 0, i]).sort((a, b) => a[0] - b[0] || a[1] - b[1]).map(([, i]) => i);
+  const show = (p) => {
+    if (!p || !p.total) return;
+    const f = Math.min(1, p.done / p.total);
+    $('#srRing') && ($('#srRing').style.strokeDashoffset = C * (1 - f));
+    $('#srPct') && ($('#srPct').textContent = `${Math.round(f * 100)} %`);
+    if (p.current && $('#srNow')) {
+      const x = visible.find((v) => v.label === p.current);
+      $('#srNow').textContent = x?.kind === 'inst' ? `Inštalujem ${p.current}…` : x?.kind === 'drop' || x?.kind === 'appx' ? `Odstraňujem ${p.current}…` : p.current === 'Bod obnovenia systému' ? 'Vytváram bod obnovenia…' : `Mením: ${p.current}`;
+      $$('.sri', body).forEach((r) => r.classList.toggle('cur', visible[+r.dataset.i]?.label === p.current));
+    }
+    // The backend does the user-level steps first, then the admin ones in one UAC prompt.
+    const past = new Set(order.slice(0, Math.max(0, p.done - (p.total - list.length))));
+    $$('.sri', body).forEach((r) => r.classList.toggle('past', past.has(+r.dataset.i) && !r.classList.contains('cur')));
+    setStatus('Nastavujem Windows', p.current ? `${p.current}` : 'Pracujem…', 'amber', f);
+  };
+  let polling = true;
+  (async () => { while (polling) { show(await invoke('actions_progress').catch(() => null)); await new Promise((r) => setTimeout(r, 500)); } })();
+  const res = await invoke('actions_apply', { restore: wantRestore(), actions: list.map((x) => x.a) })
+    .catch((e) => list.map(() => ({ ok: false, error: String(e) })));
+  polling = false;
+  nw.busy = false;
+  nw.result = list.map((x, i) => ({ ...x, ok: !!res[i]?.ok, error: res[i]?.error })).filter((x) => !x.quiet);
+  // Everything we changed needs a fresh look.
+  nw.st = null; wn.apps = null; tweakStates = null; helperDirty = true; startupItems = null;
+  nw.pick.clear(); nw.drop.clear(); nw.touched = false;
+  idleStatus();
+  renderSetupResult();
+}
+
+function renderSetupResult() {
+  const r = nw.result, ok = r.filter((x) => x.ok), bad = r.filter((x) => !x.ok);
+  const inst = ok.filter((x) => x.kind === 'inst');
+  const browser = inst.find((x) => x.icon === 'globe');
+  const restart = r.some((x) => x.ok && x.kind === 'tw' && (tweakStates || []).find((t) => t.title === x.label)?.restart === 'reboot');
+  $('#setupBody').innerHTML = `<div class="card sdone land">
+      <div class="sdone-top">${ring(1, bad.length && !ok.length ? 'bad' : 'ok')}
+        <div><b>${bad.length ? (ok.length ? `Hotovo, ${bad.length} ${plural(bad.length, 'vec sa nepodarila', 'veci sa nepodarili', 'vecí sa nepodarilo')}` : 'Nepodarilo sa to') : 'Windows je nastavený'}</b>
+        <span>${ok.length} ${plural(ok.length, 'krok', 'kroky', 'krokov')} hotových${inst.length ? ` · ${inst.length} ${plural(inst.length, 'nová appka', 'nové appky', 'nových appiek')}` : ''}. Všetko nájdeš v Histórii.</span></div></div>
+      <div class="srun-list done">${r.map((x, i) => `<div class="sri ${x.ok ? 'ok' : 'bad'} land" style="--i:${Math.min(i, 20)}"><span class="ck">${x.ok ? ICON.check : ICON.x}</span>${ICON[x.icon] || ICON.gear}<span>${esc(x.label)}${x.error ? `<em>${esc(x.error)}</em>` : ''}</span></div>`).join('')}</div>
+      ${browser ? `<div class="card recbar inset"><div>${ICON.star}<div><b>Nastav ${esc(browser.label)} ako predvolený prehliadač</b><span>Windows to appkám nedovolí urobiť samým. V nastaveniach vyber ${esc(browser.label)} a klikni „Nastaviť ako predvolené“.</span></div></div><button class="btn small primary" id="setDefault2">Otvoriť nastavenia</button></div>` : ''}
+      ${restart ? `<p class="why">Niektoré zmeny sa prejavia až po reštarte PC.</p>` : ''}
+      <div class="mact"><button class="btn" id="setupAgain">${ICON.restart}Späť na výber</button></div>
+    </div>`;
+  if ($('#setDefault2')) $('#setDefault2').onclick = () => invoke('open_system', { target: 'defaultapps' }).catch((e) => toast(String(e), 'err'));
+  $('#setupAgain').onclick = () => { nw.result = null; loadSetup(); };
+  if (ok.length) toast(bad.length ? `Hotovo, ale ${bad.length} ${plural(bad.length, 'vec sa nepodarila', 'veci sa nepodarili', 'vecí sa nepodarilo')}.` : 'Windows je nastavený', bad.length ? 'err' : 'ok');
+}
+
+$('#setupRefresh').onclick = () => { nw.st = null; nw.result = null; loadSetup(); };
+views.setup = { enter() { if (nw.result || nw.busy) return; loadSetup(); } };
+
 /* ========================================================== STABILITY */
 const sb = { report: null, disks: null, deep: null, deepBusy: false };
 const fmtDate = (unix) => new Date(unix * 1000).toLocaleString('sk-SK', { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' });
@@ -2432,7 +2658,7 @@ const HKINDS = [
   ['startup', 'Spúšťanie', (c) => c.toggle && c.toggle.t !== 'tweak'],
   ['tweak', 'Úpravy', (c) => c.toggle?.t === 'tweak'],
   ['clean', 'Uvoľnené miesto', (c) => /^(clean|trash|bin)/.test(c.id)],
-  ['apps', 'Odinštalované appky', (c) => !c.toggle && c.id.startsWith('appx:')],
+  ['apps', 'Appky', (c) => !c.toggle && (c.id.startsWith('appx:') || c.id.startsWith('winget:'))],
   ['kill', 'Ukončené procesy', (c) => c.id.startsWith('kill:')],
 ];
 /** Bytes back out of "Uvoľnené 12,3 GB". */
@@ -2445,6 +2671,7 @@ function parseFreed(d) {
 function changeText(c) {
   const t = c.toggle;
   if (!t && c.id.startsWith('appx:')) return ['Odinštalované · späť z Microsoft Store', 'rec'];
+  if (!t && c.id.startsWith('winget:')) return [c.detail || (c.enabled ? 'Nainštalované' : 'Odinštalované'), c.enabled ? 'mint' : 'rec'];
   if (!t && c.id === 'restore') return [c.detail || 'Bod obnovenia', 'mint'];
   if (!t && /^(clean|trash|bin)/.test(c.id)) return [c.detail || 'Vyčistené', 'mint'];
   if (!t) return ['Proces ukončený', 'rec'];
@@ -2491,7 +2718,7 @@ function renderHistory() {
         const [txt, dot] = changeText(c);
         const canUndo = c.toggle && !c.undone && latest.get(c.id) === c.i;
         const tw = c.toggle?.t === 'tweak' ? (tweakStates || []).find((x) => x.key === c.toggle.key) : null;
-        const hic = !c.toggle ? (c.id.startsWith('appx:') ? 'trash' : c.id === 'restore' ? 'shield' : c.id.startsWith('clean') || c.id === 'bin' ? 'broom' : c.id.startsWith('trash') ? 'trash' : 'x') : c.toggle.t === 'tweak' ? (tw?.icon || 'sparkle') : { approved: 'rocket', task: 'clock', service: 'gear' }[c.toggle.t] || 'rocket';
+        const hic = !c.toggle ? (c.id.startsWith('winget:') ? (c.enabled ? 'app' : 'trash') : c.id.startsWith('appx:') ? 'trash' : c.id === 'restore' ? 'shield' : c.id.startsWith('clean') || c.id === 'bin' ? 'broom' : c.id.startsWith('trash') ? 'trash' : 'x') : c.toggle.t === 'tweak' ? (tw?.icon || 'sparkle') : { approved: 'rocket', task: 'clock', service: 'gear' }[c.toggle.t] || 'rocket';
         out += `<div class="arow hrow ${c.undone ? 'isoff' : ''}"><span class="ricon s-${c.undone ? 'off' : dot}">${ICON[hic] || ICON.sparkle}</span>
           <div style="min-width:0"><div class="t">${esc(c.name)}${c.undone ? '<span class="badge off">Vrátené</span>' : ''}</div><div class="a">${esc(txt)}</div></div>
           <span class="time num">${new Date(c.at * 1000).toLocaleTimeString('sk-SK', { hour: '2-digit', minute: '2-digit' })}</span>
